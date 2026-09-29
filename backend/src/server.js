@@ -23,11 +23,17 @@ const {
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: allowedOrigins.length ? allowedOrigins : "*",
+    methods: ["GET", "POST"],
+  },
 });
 
 app.set("trust proxy", true);
-app.use(cors({ origin: "*" }));
+const allowedOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : "*" }));
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static("uploads"));
 

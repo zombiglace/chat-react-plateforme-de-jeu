@@ -3,8 +3,14 @@ const { Sequelize, DataTypes } = require("sequelize");
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
   logging: false,
+  dialectOptions: {
+    ssl:
+      process.env.DATABASE_URL?.includes("neon.tech") ||
+      process.env.DATABASE_URL?.includes("render.com")
+        ? { require: true, rejectUnauthorized: false }
+        : false,
+  },
 });
-
 const User = sequelize.define("User", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   username: { type: DataTypes.STRING, unique: true, allowNull: false },
