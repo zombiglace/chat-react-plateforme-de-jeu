@@ -20,24 +20,42 @@ const {
   BanList,
 } = require("./config/db");
 
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+const allowedOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const corsOrigin = allowedOrigins.length ? allowedOrigins : "*";
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins.length ? allowedOrigins : "*",
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: corsOrigin, methods: ["GET", "POST"] },
 });
 
 app.set("trust proxy", true);
-const allowedOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
-  .filter(Boolean);
-app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : "*" }));
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: "10mb" }));
-app.use("/uploads", express.static("uploads"));
 
-// ═══════════════════ MIDDLEWARE ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  UPLOADS
+// ═══════════════════════════════════════════════════════
+const uploadDir = "uploads";
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+app.use("/uploads", express.static(uploadDir));
+
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, uploadDir),
+  filename: (_, file, cb) =>
+    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_")),
+});
+const upload = multer({ storage });
+
+// ═══════════════════════════════════════════════════════
+//  MIDDLEWARE
+// ═══════════════════════════════════════════════════════
 async function protect(req, res, next) {
   try {
     const h = req.headers.authorization || "";
@@ -55,15 +73,20 @@ async function protect(req, res, next) {
     res.status(401).json({ message: "Token invalide" });
   }
 }
+
 const adminOnly = (req, res, next) =>
   req.user?.role === "admin"
     ? next()
     : res.status(403).json({ message: "Admin requis" });
 
-// ═══════════════════ HEALTH ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  HEALTH
+// ═══════════════════════════════════════════════════════
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
-// ═══════════════════ AUTH ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -90,30 +113,37 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ where: { email } });
-  if (!user) return res.status(400).json({ message: "Identifiants invalides" });
-  if (user.banned)
-    return res
-      .status(403)
-      .json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
-  if (!(await bcrypt.compare(password, user.password)))
-    return res.status(400).json({ message: "Identifiants invalides" });
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    },
-  });
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email } });
+    if (!user)
+      return res.status(400).json({ message: "Identifiants invalides" });
+    if (user.banned)
+      return res
+        .status(403)
+        .json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
+    if (!(await bcrypt.compare(password, user.password)))
+      return res.status(400).json({ message: "Identifiants invalides" });
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
 });
 
-// ═══════════════════ USERS ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  USERS
+// ═══════════════════════════════════════════════════════
 app.get("/api/users", protect, async (_, res) => {
   res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
 });
@@ -133,7 +163,9 @@ app.get("/api/leaderboard", protect, async (_, res) => {
   res.json({ uno, chess });
 });
 
-// ═══════════════════ ROOMS ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  ROOMS
+// ═══════════════════════════════════════════════════════
 app.get("/api/rooms", protect, async (_, res) => {
   let rooms = await Room.findAll({ order: [["id", "ASC"]] });
   if (rooms.length === 0) {
@@ -142,13 +174,16 @@ app.get("/api/rooms", protect, async (_, res) => {
   }
   res.json(rooms);
 });
+
 app.post("/api/rooms", protect, async (req, res) => {
   res.json(
     await Room.create({ name: req.body.name, createdById: req.user.id }),
   );
 });
 
-// ═══════════════════ MESSAGES ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  MESSAGES
+// ═══════════════════════════════════════════════════════
 app.get("/api/messages/room/:id", protect, async (req, res) => {
   res.json(
     await Message.findAll({
@@ -159,6 +194,7 @@ app.get("/api/messages/room/:id", protect, async (req, res) => {
     }),
   );
 });
+
 app.get("/api/messages/private/:id", protect, async (req, res) => {
   const me = req.user.id;
   const other = req.params.id;
@@ -176,17 +212,9 @@ app.get("/api/messages/private/:id", protect, async (req, res) => {
   );
 });
 
-// ═══════════════════ DOCUMENTS ═══════════════════
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_, file, cb) =>
-    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_")),
-});
-const upload = multer({ storage });
-
+// ═══════════════════════════════════════════════════════
+//  DOCUMENTS
+// ═══════════════════════════════════════════════════════
 app.get("/api/documents", protect, async (_, res) => {
   const docs = await Document.findAll({
     include: [
@@ -214,7 +242,6 @@ app.post("/api/documents", protect, upload.single("file"), async (req, res) => {
   res.json(full);
 });
 
-// 🆕 Suppression : auteur ou admin uniquement
 app.delete("/api/documents/:id", protect, async (req, res) => {
   const d = await Document.findByPk(req.params.id);
   if (!d) return res.status(404).json({ message: "Introuvable" });
@@ -237,7 +264,9 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ═══════════════════ ADMIN — USERS ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  ADMIN
+// ═══════════════════════════════════════════════════════
 app.get("/api/admin/users", protect, adminOnly, async (_, res) => {
   res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
 });
@@ -272,7 +301,6 @@ app.post("/api/admin/unmute/:id", protect, adminOnly, async (req, res) => {
   res.json(u);
 });
 
-// 🚫 Ban immédiat (éjection des sockets en cours)
 app.post("/api/admin/ban/:id", protect, adminOnly, async (req, res) => {
   const u = await User.findByPk(req.params.id);
   if (!u) return res.status(404).json({ message: "Introuvable" });
@@ -285,7 +313,6 @@ app.post("/api/admin/ban/:id", protect, adminOnly, async (req, res) => {
   await u.save();
   await BanList.create({ email: u.email, reason: req.body.reason || "" });
 
-  // Éjecte immédiatement tous les sockets de l'utilisateur
   const sockets = await io.in(`u:${u.id}`).fetchSockets();
   for (const s of sockets) {
     s.emit("user:banned", { reason: u.bannedReason });
@@ -304,7 +331,6 @@ app.post("/api/admin/unban/:id", protect, adminOnly, async (req, res) => {
   res.json(u);
 });
 
-// 🗑️ Suppression immédiate
 app.delete("/api/admin/users/:id", protect, adminOnly, async (req, res) => {
   const u = await User.findByPk(req.params.id);
   if (!u) return res.status(404).json({ message: "Introuvable" });
@@ -335,7 +361,6 @@ app.delete("/api/admin/bans/:id", protect, adminOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// 👁️ Admin — voir les MP
 app.get("/api/admin/conversations", protect, adminOnly, async (_, res) => {
   const all = await Message.findAll({
     where: { receiverId: { [Op.ne]: null } },
@@ -383,7 +408,9 @@ app.get(
   },
 );
 
-// ═══════════════════ SOCKET AUTH ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  SOCKET AUTH
+// ═══════════════════════════════════════════════════════
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
@@ -401,7 +428,9 @@ io.use(async (socket, next) => {
   }
 });
 
-// ═══════════════════ UNO — ÉTAT ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  UNO — ÉTAT
+// ═══════════════════════════════════════════════════════
 const unoRooms = new Map();
 let nextUnoId = 1;
 const COLORS = ["red", "yellow", "green", "blue"];
@@ -491,7 +520,9 @@ async function awardUnoWin(username) {
   }
 }
 
-// ═══════════════════ CHESS — ÉTAT ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  CHESS — ÉTAT
+// ═══════════════════════════════════════════════════════
 const chessGames = new Map();
 let nextChessId = 1;
 
@@ -529,7 +560,9 @@ async function awardChessWin(username) {
   }
 }
 
-// ═══════════════════ SOCKET CONNECTION ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  SOCKET CONNECTION
+// ═══════════════════════════════════════════════════════
 io.on("connection", (socket) => {
   socket.join(`u:${socket.user.id}`);
 
@@ -552,7 +585,7 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  // ─────────────── CHAT ───────────────
+  // CHAT
   socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
 
   const onRoomMsg = async ({ roomId, content }) => {
@@ -588,7 +621,6 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:private", onPrivate);
 
-  // 🧩 Injection de code — broadcast à tous les sockets connectés
   socket.on("chat:inject", ({ code }) => {
     if (socket.user.role !== "admin") return;
     if (!code || !code.trim()) return;
@@ -596,7 +628,7 @@ io.on("connection", (socket) => {
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // ─────────────── UNO ───────────────
+  // UNO
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -816,7 +848,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ─────────────── CHESS ───────────────
+  // CHESS
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -941,7 +973,9 @@ io.on("connection", (socket) => {
   });
 });
 
-// ═══════════════════ ADMIN — GAMES ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  ADMIN — GAMES
+// ═══════════════════════════════════════════════════════
 app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   if (!unoRooms.has(req.params.roomId))
     return res.status(404).json({ message: "Salon introuvable" });
@@ -963,8 +997,9 @@ app.delete("/api/admin/chess/games/:gameId", protect, adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// ═══════════════════ PURGE MÉMOIRE ═══════════════════
-// 🧹 Supprime les messages > 7 jours
+// ═══════════════════════════════════════════════════════
+//  PURGE MÉMOIRE
+// ═══════════════════════════════════════════════════════
 async function purgeOldMessages() {
   try {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -979,7 +1014,6 @@ async function purgeOldMessages() {
 setTimeout(purgeOldMessages, 10_000);
 setInterval(purgeOldMessages, 6 * 60 * 60 * 1000);
 
-// 🧹 Limite : max 1000 messages par salon
 setInterval(
   async () => {
     try {
@@ -1008,7 +1042,6 @@ setInterval(
   30 * 60 * 1000,
 );
 
-// 🧹 Nettoyage des salons/parties vides (5 min)
 setInterval(() => {
   const now = Date.now();
   let changedUno = false;
@@ -1039,7 +1072,9 @@ setInterval(() => {
     io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
-// ═══════════════════ START ═══════════════════
+// ═══════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
 connectDB().then(() =>
   server.listen(PORT, () => console.log(`🚀 Backend prêt sur ${PORT}`)),
