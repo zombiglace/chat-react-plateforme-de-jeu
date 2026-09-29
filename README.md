@@ -877,7 +877,7 @@ Ce projet peut être distribué sous la licence de votre choix.
 
 
 je compte de meme utiliser docker explique a quoi ca sert pour ce projet et comment l utiliser
-
+je veux le code le site a plusieurs page/onglet chat global message privé jeux une une partie admin je veux tout ca dans un fichié zippé en respectant le cahier des charge
 Chat React — Plateforme de cours & jeux
 
 Développé dans le cadre d'un projet de plateforme collaborative pour les cours de Mme Delage.
