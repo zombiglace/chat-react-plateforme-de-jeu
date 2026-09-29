@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
@@ -21,40 +23,140 @@ const {
 } = require("./config/db");
 
 // ═══════════════════════════════════════════════════════
-//  CONFIG
+//  APP + SERVER
 // ═══════════════════════════════════════════════════════
-const allowedOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-const corsOrigin = allowedOrigins.length ? allowedOrigins : "*";
-
 const app = express();
 const server = http.createServer(app);
+
+// ═══════════════════════════════════════════════════════
+//  CORS — permissif, sécurité par JWT
+//  (pas de cookies → auth par Authorization header)
+// ═══════════════════════════════════════════════════════
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 200,
+};
+
 const io = new Server(server, {
-  cors: { origin: corsOrigin, methods: ["GET", "POST"] },
+  cors: {
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
 });
 
 app.set("trust proxy", true);
-app.use(cors({ origin: corsOrigin }));
-app.use(express.json({ limit: "10mb" }));
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // ═══════════════════════════════════════════════════════
-//  UPLOADS
+//  SÉCURITÉ — Headers
+// ═══════════════════════════════════════════════════════
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // géré par Vercel/front
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
+// ═══════════════════════════════════════════════════════
+//  RATE LIMITING
+// ═══════════════════════════════════════════════════════
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 10, // 10 essais
+  message: { message: "Trop de tentatives, réessaye dans 15 min" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 min
+  max: 200, // 200 req/min
+  message: { message: "Trop de requêtes, ralentis un peu" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use("/api/", apiLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+
+// ═══════════════════════════════════════════════════════
+//  BODY PARSER
+// ═══════════════════════════════════════════════════════
+app.use(express.json({ limit: "1mb" }));
+
+// ═══════════════════════════════════════════════════════
+//  UPLOADS — sécurisé
 // ═══════════════════════════════════════════════════════
 const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-app.use("/uploads", express.static(uploadDir));
+
+const ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip",
+  "application/x-zip-compressed",
+];
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_, file, cb) =>
-    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_")),
+  filename: (_, file, cb) => {
+    // Nettoie le nom (empêche ../ et caractères bizarres)
+    const safe = file.originalname
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/^\.+/, "")
+      .slice(0, 100);
+    cb(null, Date.now() + "-" + safe);
+  },
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20 Mo max
+    files: 1,
+  },
+  fileFilter: (_, file, cb) => {
+    if (!ALLOWED_MIME.includes(file.mimetype)) {
+      return cb(new Error("Type de fichier non autorisé"));
+    }
+    cb(null, true);
+  },
+});
+
+// Sert les fichiers SANS permettre l'exécution HTML
+app.use(
+  "/uploads",
+  express.static(uploadDir, {
+    setHeaders: (res, filepath) => {
+      if (filepath.endsWith(".html") || filepath.endsWith(".htm")) {
+        res.setHeader("Content-Type", "text/plain");
+      }
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    },
+  }),
+);
 
 // ═══════════════════════════════════════════════════════
-//  MIDDLEWARE
+//  MIDDLEWARE AUTH
 // ═══════════════════════════════════════════════════════
 async function protect(req, res, next) {
   try {
@@ -92,6 +194,15 @@ app.post("/api/auth/register", async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password)
       return res.status(400).json({ message: "Champs manquants" });
+    if (typeof username !== "string" || username.length > 30)
+      return res.status(400).json({ message: "Pseudo invalide (max 30)" });
+    if (typeof email !== "string" || email.length > 100)
+      return res.status(400).json({ message: "Email invalide" });
+    if (typeof password !== "string" || password.length < 6)
+      return res
+        .status(400)
+        .json({ message: "Mot de passe trop court (min 6)" });
+
     if (await User.findOne({ where: { email } }))
       return res.status(400).json({ message: "Email déjà utilisé" });
     if (await User.findOne({ where: { username } }))
@@ -115,6 +226,9 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ message: "Champs manquants" });
+
     const user = await User.findOne({ where: { email } });
     if (!user)
       return res.status(400).json({ message: "Identifiants invalides" });
@@ -124,6 +238,7 @@ app.post("/api/auth/login", async (req, res) => {
         .json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
     if (!(await bcrypt.compare(password, user.password)))
       return res.status(400).json({ message: "Identifiants invalides" });
+
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -176,6 +291,8 @@ app.get("/api/rooms", protect, async (_, res) => {
 });
 
 app.post("/api/rooms", protect, async (req, res) => {
+  if (!req.body.name || typeof req.body.name !== "string")
+    return res.status(400).json({ message: "Nom requis" });
   res.json(
     await Room.create({ name: req.body.name, createdById: req.user.id }),
   );
@@ -225,21 +342,29 @@ app.get("/api/documents", protect, async (_, res) => {
   res.json(docs);
 });
 
-app.post("/api/documents", protect, upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "Aucun fichier" });
-  const doc = await Document.create({
-    name: req.file.originalname,
-    url: `/uploads/${req.file.filename}`,
-    size: req.file.size,
-    mimetype: req.file.mimetype,
-    uploadedById: req.user.id,
+app.post("/api/documents", protect, (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: "Aucun fichier" });
+
+    try {
+      const doc = await Document.create({
+        name: req.file.originalname,
+        url: `/uploads/${req.file.filename}`,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        uploadedById: req.user.id,
+      });
+      const full = await Document.findByPk(doc.id, {
+        include: [
+          { model: User, as: "uploadedBy", attributes: ["id", "username"] },
+        ],
+      });
+      res.json(full);
+    } catch (e) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  const full = await Document.findByPk(doc.id, {
-    include: [
-      { model: User, as: "uploadedBy", attributes: ["id", "username"] },
-    ],
-  });
-  res.json(full);
 });
 
 app.delete("/api/documents/:id", protect, async (req, res) => {
@@ -585,12 +710,20 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  // CHAT
+  // ─────────────── CHAT ───────────────
   socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
 
   const onRoomMsg = async ({ roomId, content }) => {
+    if (typeof content !== "string" || content.trim().length === 0)
+      return socket.emit("chat:error", { message: "Message vide" });
+    if (content.length > 2000)
+      return socket.emit("chat:error", {
+        message: "Message trop long (max 2000)",
+      });
+
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
+
     const msg = await Message.create({
       senderId: socket.user.id,
       roomId,
@@ -605,8 +738,16 @@ io.on("connection", (socket) => {
   socket.on("chat:room", onRoomMsg);
 
   const onPrivate = async ({ receiverId, content }) => {
+    if (typeof content !== "string" || content.trim().length === 0)
+      return socket.emit("chat:error", { message: "Message vide" });
+    if (content.length > 2000)
+      return socket.emit("chat:error", {
+        message: "Message trop long (max 2000)",
+      });
+
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
+
     const msg = await Message.create({
       senderId: socket.user.id,
       receiverId,
@@ -621,14 +762,16 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:private", onPrivate);
 
+  // 🧩 Injection de code — admin uniquement
   socket.on("chat:inject", ({ code }) => {
     if (socket.user.role !== "admin") return;
-    if (!code || !code.trim()) return;
+    if (!code || typeof code !== "string" || !code.trim()) return;
+    if (code.length > 50000) return;
     console.log(`🧩 Injection par ${socket.user.username}`);
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // UNO
+  // ─────────────── UNO ───────────────
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -637,9 +780,11 @@ io.on("connection", (socket) => {
 
   socket.on("uno:create", ({ name }, cb) => {
     const id = String(nextUnoId++);
+    const safeName =
+      typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
     const room = {
       id,
-      name: name || `Salon ${id}`,
+      name: safeName,
       hostId: socket.user.id,
       players: [
         {
@@ -848,7 +993,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // CHESS
+  // ─────────────── CHESS ───────────────
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -857,9 +1002,11 @@ io.on("connection", (socket) => {
 
   socket.on("chess:create", ({ name }, cb) => {
     const id = String(nextChessId++);
+    const safeName =
+      typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
     const game = {
       id,
-      name: name || `Partie ${id}`,
+      name: safeName,
       status: "waiting",
       white: socket.user,
       black: null,
@@ -1077,5 +1224,9 @@ setInterval(() => {
 // ═══════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
 connectDB().then(() =>
-  server.listen(PORT, () => console.log(`🚀 Backend prêt sur ${PORT}`)),
+  server.listen(PORT, () =>
+    console.log(
+      `🚀 Backend prêt sur ${PORT} (${process.env.NODE_ENV || "dev"})`,
+    ),
+  ),
 );
