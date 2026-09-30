@@ -219,8 +219,6 @@ export default function Sidebar() {
     <span>·</span>
     <Link to="/confidentialite">Confidentialité</Link>
     <span>·</span>
-    <Link to="/cgu">CGU</Link>
-    <span>·</span>
     <Link to="/accessibilite">Accessibilité</Link>
   </div>
 
