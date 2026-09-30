@@ -718,90 +718,479 @@ const PRESETS = [
   },
 
   {
-    id: "satellite",
-    name: "📡 Satellite Scan",
-    desc: "Radar satellite animé",
-    code: `(() => {
-  document.getElementById("__satellite")?.remove();
+  id: "satellitePro",
+  name: "🛰️ Satellite Scan PRO",
+  desc: "Radar futuriste avec balayage, grille et détection de cibles",
+  code: `(() => {
+  document.getElementById("__satellitePro")?.remove();
+  document.getElementById("__satelliteProStyle")?.remove();
 
   const overlay = document.createElement("div");
-  overlay.id = "__satellite";
+  overlay.id = "__satellitePro";
 
   overlay.style.cssText = \`
     position:fixed;
     inset:0;
     z-index:999999;
-    background:#020617;
-    display:grid;
-    place-items:center;
+    background:
+      radial-gradient(circle at center, #06251b 0%, #020807 45%, #000 100%);
+    color:#22c55e;
+    font-family:monospace;
     overflow:hidden;
   \`;
 
   overlay.innerHTML = \`
+    <!-- Grille HUD -->
     <div style="
-      width:min(70vw,500px);
+      position:absolute;
+      inset:0;
+      opacity:.18;
+      background-image:
+        linear-gradient(#22c55e 1px, transparent 1px),
+        linear-gradient(90deg,#22c55e 1px,transparent 1px);
+      background-size:50px 50px;
+    "></div>
+
+    <!-- Scanlines -->
+    <div style="
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 3px,
+        rgba(34,197,94,.04) 4px
+      );
+    "></div>
+
+    <!-- Header -->
+    <div style="
+      position:absolute;
+      top:20px;
+      left:25px;
+      right:25px;
+      display:flex;
+      justify-content:space-between;
+      font-size:14px;
+      letter-spacing:2px;
+    ">
+      <span>🛰️ SATELLITE // SCAN PRO</span>
+      <span id="__satTime">00:00:00</span>
+    </div>
+
+    <!-- Radar -->
+    <div id="__radar" style="
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:min(72vw,560px);
       aspect-ratio:1;
+      transform:translate(-50%,-50%);
       border:2px solid #22c55e;
       border-radius:50%;
-      position:relative;
       background:
-        radial-gradient(circle, transparent 0 20%,
-        rgba(34,197,94,.15) 21% 22%,
-        transparent 23% 40%,
-        rgba(34,197,94,.15) 41% 42%,
-        transparent 43%);
-      box-shadow:0 0 40px rgba(34,197,94,.3);
+        radial-gradient(
+          circle,
+          transparent 0 19%,
+          rgba(34,197,94,.18) 20% 20.5%,
+          transparent 21% 39%,
+          rgba(34,197,94,.15) 40% 40.5%,
+          transparent 41% 59%,
+          rgba(34,197,94,.15) 60% 60.5%,
+          transparent 61%
+        );
+      box-shadow:
+        0 0 25px rgba(34,197,94,.4),
+        inset 0 0 60px rgba(34,197,94,.15);
     ">
+
+      <!-- Ligne horizontale -->
+      <div style="
+        position:absolute;
+        left:0;
+        right:0;
+        top:50%;
+        height:1px;
+        background:rgba(34,197,94,.5);
+      "></div>
+
+      <!-- Ligne verticale -->
+      <div style="
+        position:absolute;
+        top:0;
+        bottom:0;
+        left:50%;
+        width:1px;
+        background:rgba(34,197,94,.5);
+      "></div>
+
+      <!-- Balayage -->
       <div style="
         position:absolute;
         width:50%;
         height:2px;
-        background:#22c55e;
         top:50%;
         left:50%;
         transform-origin:left center;
-        animation:__radarSpin 2s linear infinite;
-        box-shadow:0 0 12px #22c55e;
+        background:linear-gradient(
+          90deg,
+          #22c55e,
+          rgba(34,197,94,.8),
+          transparent
+        );
+        box-shadow:0 0 15px #22c55e;
+        animation:__satSweep 3s linear infinite;
       "></div>
 
+      <!-- Centre -->
       <div style="
         position:absolute;
         width:12px;
         height:12px;
+        left:50%;
+        top:50%;
+        transform:translate(-50%,-50%);
         border-radius:50%;
-        background:#ef4444;
-        left:65%;
-        top:30%;
-        box-shadow:0 0 15px red;
+        background:#22c55e;
+        box-shadow:0 0 20px #22c55e;
       "></div>
 
-      <div style="
-        position:absolute;
-        width:10px;
-        height:10px;
-        border-radius:50%;
-        background:#facc15;
-        left:25%;
-        top:65%;
-        box-shadow:0 0 15px #facc15;
-      "></div>
+      <!-- Cibles -->
+      <div class="__target" style="left:67%;top:27%;"></div>
+      <div class="__target" style="left:25%;top:63%;"></div>
+      <div class="__target" style="left:72%;top:70%;"></div>
+      <div class="__target" style="left:35%;top:38%;"></div>
     </div>
 
+    <!-- Informations gauche -->
     <div style="
       position:absolute;
-      bottom:30px;
-      color:#22c55e;
-      font:16px monospace;
+      left:25px;
+      bottom:25px;
+      width:230px;
+      line-height:1.8;
+      font-size:13px;
     ">
-      SATELLITE SCAN // SIGNAL ACTIVE
+      <div>STATUS: <span style="color:#86efac">ACTIVE</span></div>
+      <div>MODE: DEEP SCAN</div>
+      <div>SIGNAL: <span id="__signal">87%</span></div>
+      <div>RANGE: 42,891 KM</div>
+      <div>TARGETS: <span id="__targets">4</span></div>
+    </div>
+
+    <!-- Informations droite -->
+    <div style="
+      position:absolute;
+      right:25px;
+      bottom:25px;
+      width:240px;
+      text-align:right;
+      line-height:1.8;
+      font-size:13px;
+    ">
+      <div>LAT: 48.8566</div>
+      <div>LON: 2.3522</div>
+      <div>ALT: 35,786 KM</div>
+      <div>ORBIT: GEO-01</div>
+      <div style="color:#86efac">● LINK ESTABLISHED</div>
+    </div>
+
+    <!-- Message central -->
+    <div id="__satMessage" style="
+      position:absolute;
+      left:50%;
+      bottom:18px;
+      transform:translateX(-50%);
+      letter-spacing:3px;
+      font-size:12px;
+    ">
+      SCANNING...
     </div>
   \`;
 
   const style = document.createElement("style");
+  style.id = "__satelliteProStyle";
+
   style.textContent = \`
-    @keyframes __radarSpin {
-      from { transform:rotate(0deg); }
-      to { transform:rotate(360deg); }
+    @keyframes __satSweep {
+      from {
+        transform:rotate(0deg);
+      }
+      to {
+        transform:rotate(360deg);
+      }
+    }
+
+    @keyframes __targetPulse {
+      0%,100% {
+        opacity:.35;
+        transform:scale(.8);
+      }
+      50% {
+        opacity:1;
+        transform:scale(1.2);
+      }
+    }
+
+    .__target {
+      position:absolute;
+      width:10px;
+      height:10px;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      background:#ef4444;
+      box-shadow:
+        0 0 8px #ef4444,
+        0 0 20px rgba(239,68,68,.8);
+      animation:__targetPulse 1s infinite;
+    }
+
+    .__target::before {
+      content:"";
+      position:absolute;
+      width:24px;
+      height:24px;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      border:1px solid #ef4444;
+      border-radius:50%;
+    }
+
+    @keyframes __textBlink {
+      50% { opacity:.3; }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(overlay);
+
+  // Horloge
+  const timeEl = overlay.querySelector("#__satTime");
+
+  const clock = setInterval(() => {
+    const now = new Date();
+
+    timeEl.textContent =
+      now.toLocaleTimeString("fr-FR");
+  }, 1000);
+
+  // Variation du signal
+  const signal = overlay.querySelector("#__signal");
+
+  const signalInterval = setInterval(() => {
+    signal.textContent =
+      Math.floor(75 + Math.random()*24) + "%";
+  }, 300);
+
+  // Messages de scan
+  const messages = [
+    "SCANNING...",
+    "ANALYZING SIGNAL...",
+    "TRACKING TARGET...",
+    "CALCULATING ORBIT...",
+    "RECEIVING DATA...",
+    "SCAN COMPLETE"
+  ];
+
+  const message = overlay.querySelector("#__satMessage");
+
+  let index = 0;
+
+  const messageInterval = setInterval(() => {
+    message.textContent = messages[index++ % messages.length];
+  }, 900);
+
+  // Fermeture automatique
+  setTimeout(() => {
+    clearInterval(clock);
+    clearInterval(signalInterval);
+    clearInterval(messageInterval);
+
+    overlay.remove();
+    style.remove();
+  }, 12000);
+})();`,
+},
+  {
+    id: "holographicGlobe",
+    name: "🌐 Globe holographique",
+    desc: "Terre holographique avec grille et connexions animées",
+    code: `(() => {
+  document.getElementById("__holoGlobe")?.remove();
+  document.getElementById("__holoGlobeStyle")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__holoGlobe";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    background:
+      radial-gradient(circle at center,
+        rgba(0,180,255,.12),
+        #020817 45%,
+        #000 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    color:#38bdf8;
+    font-family:monospace;
+  \`;
+
+  overlay.innerHTML = \`
+    <div style="
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(rgba(56,189,248,.04) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(56,189,248,.04) 1px,transparent 1px);
+      background-size:40px 40px;
+    "></div>
+
+    <div id="__globe" style="
+      position:relative;
+      width:min(65vw,480px);
+      aspect-ratio:1;
+      border-radius:50%;
+      border:2px solid #38bdf8;
+      background:
+        radial-gradient(circle at 35% 30%,
+          rgba(125,211,252,.35),
+          rgba(14,116,144,.15) 35%,
+          rgba(2,8,23,.9) 72%);
+      box-shadow:
+        0 0 30px #0ea5e9,
+        0 0 80px rgba(14,165,233,.5),
+        inset 0 0 60px rgba(56,189,248,.3);
+      overflow:hidden;
+    ">
+
+      <div style="
+        position:absolute;
+        inset:7%;
+        border:1px solid rgba(56,189,248,.5);
+        border-radius:50%;
+        transform:rotateX(65deg);
+      "></div>
+
+      <div style="
+        position:absolute;
+        inset:18%;
+        border:1px solid rgba(56,189,248,.35);
+        border-radius:50%;
+        transform:rotateX(65deg);
+      "></div>
+
+      <div style="
+        position:absolute;
+        inset:28%;
+        border:1px solid rgba(56,189,248,.3);
+        border-radius:50%;
+        transform:rotateY(65deg);
+      "></div>
+
+      <div style="
+        position:absolute;
+        inset:12%;
+        border-left:1px solid rgba(56,189,248,.35);
+        border-right:1px solid rgba(56,189,248,.35);
+        border-radius:50%;
+        transform:rotateY(65deg);
+      "></div>
+
+      <div style="
+        position:absolute;
+        width:50%;
+        height:2px;
+        left:50%;
+        top:50%;
+        transform-origin:left center;
+        background:linear-gradient(
+          90deg,
+          #7dd3fc,
+          transparent
+        );
+        box-shadow:0 0 12px #38bdf8;
+        animation:__globeScan 3s linear infinite;
+      "></div>
+
+      <div class="__globePoint" style="left:38%;top:37%;"></div>
+      <div class="__globePoint" style="left:65%;top:48%;"></div>
+      <div class="__globePoint" style="left:55%;top:68%;"></div>
+      <div class="__globePoint" style="left:28%;top:58%;"></div>
+    </div>
+
+    <div style="
+      position:absolute;
+      top:25px;
+      left:30px;
+      letter-spacing:3px;
+    ">
+      🌐 PLANETARY HOLOGRAM
+    </div>
+
+    <div style="
+      position:absolute;
+      bottom:25px;
+      left:30px;
+      line-height:1.8;
+      font-size:12px;
+    ">
+      SYSTEM: ONLINE<br>
+      ORBIT: GEO-01<br>
+      NETWORK: <span style="color:#86efac">CONNECTED</span>
+    </div>
+
+    <div style="
+      position:absolute;
+      bottom:25px;
+      right:30px;
+      text-align:right;
+      line-height:1.8;
+      font-size:12px;
+    ">
+      SIGNAL: 98%<br>
+      SATELLITES: 24<br>
+      STATUS: <span style="color:#86efac">STABLE</span>
+    </div>
+  \`;
+
+  const style = document.createElement("style");
+  style.id = "__holoGlobeStyle";
+
+  style.textContent = \`
+    @keyframes __globeScan {
+      from {
+        transform:rotate(0deg);
+      }
+      to {
+        transform:rotate(360deg);
+      }
+    }
+
+    @keyframes __globePoint {
+      0%,100% {
+        transform:translate(-50%,-50%) scale(.7);
+        opacity:.4;
+      }
+      50% {
+        transform:translate(-50%,-50%) scale(1.4);
+        opacity:1;
+      }
+    }
+
+    .__globePoint {
+      position:absolute;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:#38bdf8;
+      box-shadow:0 0 15px #38bdf8;
+      animation:__globePoint 1.5s infinite;
     }
   \`;
 
@@ -811,7 +1200,243 @@ const PRESETS = [
   setTimeout(() => {
     overlay.remove();
     style.remove();
-  }, 8000);
+  }, 10000);
+})();`,
+  },
+
+  {
+    id: "bioScan",
+    name: "🧬 Scan biologique",
+    desc: "Scanner biométrique futuriste avec silhouette et données simulées",
+    code: `(() => {
+  document.getElementById("__bioScan")?.remove();
+  document.getElementById("__bioScanStyle")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__bioScan";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    background:
+      radial-gradient(circle at center,
+        rgba(34,197,94,.1),
+        #020604 50%,
+        #000 100%);
+    color:#22c55e;
+    font-family:monospace;
+    overflow:hidden;
+  \`;
+
+  overlay.innerHTML = \`
+    <!-- grille -->
+    <div style="
+      position:absolute;
+      inset:0;
+      opacity:.15;
+      background:
+        linear-gradient(#22c55e 1px,transparent 1px),
+        linear-gradient(90deg,#22c55e 1px,transparent 1px);
+      background-size:35px 35px;
+    "></div>
+
+    <!-- titre -->
+    <div style="
+      position:absolute;
+      top:25px;
+      left:30px;
+      letter-spacing:3px;
+      font-size:15px;
+    ">
+      🧬 BIOLOGICAL SCANNER // PROTOCOL 07
+    </div>
+
+    <!-- silhouette -->
+    <div style="
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      width:220px;
+      height:500px;
+    ">
+
+      <!-- tête -->
+      <div style="
+        position:absolute;
+        top:0;
+        left:50%;
+        transform:translateX(-50%);
+        width:90px;
+        height:105px;
+        border:2px solid #22c55e;
+        border-radius:50%;
+        box-shadow:0 0 20px rgba(34,197,94,.5);
+      "></div>
+
+      <!-- corps -->
+      <div style="
+        position:absolute;
+        top:100px;
+        left:50%;
+        transform:translateX(-50%);
+        width:130px;
+        height:270px;
+        border:2px solid #22c55e;
+        border-radius:65px 65px 35px 35px;
+        box-shadow:0 0 20px rgba(34,197,94,.4);
+      "></div>
+
+      <!-- bras -->
+      <div style="
+        position:absolute;
+        top:115px;
+        left:15px;
+        width:55px;
+        height:220px;
+        border-left:2px solid #22c55e;
+        transform:rotate(8deg);
+      "></div>
+
+      <div style="
+        position:absolute;
+        top:115px;
+        right:15px;
+        width:55px;
+        height:220px;
+        border-right:2px solid #22c55e;
+        transform:rotate(-8deg);
+      "></div>
+
+      <!-- ligne scanner -->
+      <div style="
+        position:absolute;
+        left:-100px;
+        width:420px;
+        height:3px;
+        background:#86efac;
+        box-shadow:
+          0 0 10px #22c55e,
+          0 0 30px #22c55e;
+        animation:__bioScanLine 3s linear infinite;
+      "></div>
+    </div>
+
+    <!-- données gauche -->
+    <div style="
+      position:absolute;
+      left:30px;
+      top:100px;
+      line-height:2;
+      font-size:13px;
+    ">
+      <div>HEART RATE: <span id="__heart">72</span> BPM</div>
+      <div>OXYGEN: <span id="__oxygen">98</span>%</div>
+      <div>TEMPERATURE: 36.7°C</div>
+      <div>NEURAL ACTIVITY: NORMAL</div>
+      <div>CELLULAR: STABLE</div>
+    </div>
+
+    <!-- données droite -->
+    <div style="
+      position:absolute;
+      right:30px;
+      top:100px;
+      text-align:right;
+      line-height:2;
+      font-size:13px;
+    ">
+      <div>DNA MATCH: <span style="color:#86efac">SIMULATED</span></div>
+      <div>SCAN: <span id="__progress">0</span>%</div>
+      <div>BIOMETRIC: ACTIVE</div>
+      <div>THREAT LEVEL: LOW</div>
+      <div>STATUS: ANALYZING</div>
+    </div>
+
+    <div id="__bioMessage" style="
+      position:absolute;
+      bottom:30px;
+      left:50%;
+      transform:translateX(-50%);
+      letter-spacing:3px;
+    ">
+      INITIALIZING SCAN...
+    </div>
+  \`;
+
+  const style = document.createElement("style");
+  style.id = "__bioScanStyle";
+
+  style.textContent = \`
+    @keyframes __bioScanLine {
+      from {
+        top:0;
+      }
+      to {
+        top:100%;
+      }
+    }
+
+    @keyframes __bioPulse {
+      50% {
+        opacity:.45;
+      }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(overlay);
+
+  const progress = overlay.querySelector("#__progress");
+  const heart = overlay.querySelector("#__heart");
+  const oxygen = overlay.querySelector("#__oxygen");
+  const message = overlay.querySelector("#__bioMessage");
+
+  const messages = [
+    "INITIALIZING SCAN...",
+    "ANALYZING BIOMETRICS...",
+    "READING SIGNAL...",
+    "ANALYZING CELLULAR DATA...",
+    "VERIFYING PROFILE...",
+    "SCAN COMPLETE"
+  ];
+
+  let percent = 0;
+  let msgIndex = 0;
+
+  const interval = setInterval(() => {
+    percent += Math.floor(Math.random() * 8) + 2;
+
+    if (percent > 100) {
+      percent = 100;
+    }
+
+    progress.textContent = percent;
+
+    heart.textContent =
+      68 + Math.floor(Math.random() * 12);
+
+    oxygen.textContent =
+      96 + Math.floor(Math.random() * 4);
+
+    if (percent >= 100) {
+      clearInterval(interval);
+      message.textContent = "✓ SCAN COMPLETE — SIMULATION";
+    }
+  }, 180);
+
+  const msgInterval = setInterval(() => {
+    message.textContent =
+      messages[msgIndex++ % messages.length];
+  }, 900);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    clearInterval(msgInterval);
+    overlay.remove();
+    style.remove();
+  }, 10000);
 })();`,
   },
 
