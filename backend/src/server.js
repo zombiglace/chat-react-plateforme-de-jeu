@@ -13,25 +13,16 @@ const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 const { Chess } = require("chess.js");
 
-const {
-  connectDB,
-  User,
-  Message,
-  Room,
-  Document,
-  BanList,
-} = require("./config/db");
+const { connectDB, User, Message, Room, Document, BanList } = require("./config/db");
 
-// ═══════════════════════════════════════════════════════
-//  APP + SERVER
-// ═══════════════════════════════════════════════════════
-const app = express();
-const server = http.createServer(app);
+// ═══════════════════════════════════════════════════════════════
+//  CONFIG GÉNÉRALE
+// ═══════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════
-//  CORS — permissif, sécurité par JWT
-//  (pas de cookies → auth par Authorization header)
-// ═══════════════════════════════════════════════════════
+// Emails autorisés (gmail, hotmail, outlook)
+const ALLOWED_EMAIL = /@(gmail|hotmail|outlook)\.(com|fr)$/i;
+
+// CORS permissif — la sécurité passe par le JWT, pas par les cookies
 const corsOptions = {
   origin: true,
   credentials: true,
@@ -40,43 +31,40 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
+const app = express();
+const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: {
-    origin: true,
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: true, credentials: true, methods: ["GET", "POST"] },
 });
 
 app.set("trust proxy", true);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
-// ═══════════════════════════════════════════════════════
-//  SÉCURITÉ — Headers
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  SÉCURITÉ
+// ═══════════════════════════════════════════════════════════════
 app.use(
   helmet({
-    contentSecurityPolicy: false, // géré par Vercel/front
+    contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
-  }),
+  })
 );
 
-// ═══════════════════════════════════════════════════════
-//  RATE LIMITING
-// ═══════════════════════════════════════════════════════
+// Rate limiting : 10 tentatives / 15 min pour auth, 200 req/min pour l'API
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 10, // 10 essais
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: { message: "Trop de tentatives, réessaye dans 15 min" },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 min
-  max: 200, // 200 req/min
+  windowMs: 1 * 60 * 1000,
+  max: 200,
   message: { message: "Trop de requêtes, ralentis un peu" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -86,26 +74,21 @@ app.use("/api/", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  BODY PARSER
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.use(express.json({ limit: "1mb" }));
 
-// ═══════════════════════════════════════════════════════
-//  UPLOADS — sécurisé
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  UPLOADS
+// ═══════════════════════════════════════════════════════════════
 const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const ALLOWED_MIME = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
+  "image/jpeg", "image/png", "image/gif", "image/webp",
   "application/pdf",
-  "text/plain",
-  "text/markdown",
-  "text/csv",
+  "text/plain", "text/markdown", "text/csv",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
@@ -119,7 +102,6 @@ const ALLOWED_MIME = [
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadDir),
   filename: (_, file, cb) => {
-    // Nettoie le nom (empêche ../ et caractères bizarres)
     const safe = file.originalname
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .replace(/^\.+/, "")
@@ -130,10 +112,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: {
-    fileSize: 20 * 1024 * 1024, // 20 Mo max
-    files: 1,
-  },
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
   fileFilter: (_, file, cb) => {
     if (!ALLOWED_MIME.includes(file.mimetype)) {
       return cb(new Error("Type de fichier non autorisé"));
@@ -142,7 +121,7 @@ const upload = multer({
   },
 });
 
-// Sert les fichiers SANS permettre l'exécution HTML
+// Sert les fichiers en refusant l'exécution HTML
 app.use(
   "/uploads",
   express.static(uploadDir, {
@@ -152,23 +131,23 @@ app.use(
       }
       res.setHeader("X-Content-Type-Options", "nosniff");
     },
-  }),
+  })
 );
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  MIDDLEWARE AUTH
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 async function protect(req, res, next) {
   try {
     const h = req.headers.authorization || "";
     const token = h.startsWith("Bearer ") ? h.slice(7) : null;
     if (!token) return res.status(401).json({ message: "Non authentifié" });
+
     const d = jwt.verify(token, process.env.JWT_SECRET);
-    const u = await User.findByPk(d.id, {
-      attributes: { exclude: ["password"] },
-    });
+    const u = await User.findByPk(d.id, { attributes: { exclude: ["password"] } });
     if (!u) return res.status(401).json({ message: "Introuvable" });
     if (u.banned) return res.status(403).json({ message: "🚫 Banni" });
+
     req.user = u;
     next();
   } catch {
@@ -177,47 +156,78 @@ async function protect(req, res, next) {
 }
 
 const adminOnly = (req, res, next) =>
-  req.user?.role === "admin"
-    ? next()
-    : res.status(403).json({ message: "Admin requis" });
+  req.user?.role === "admin" ? next() : res.status(403).json({ message: "Admin requis" });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  HEALTH
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  AUTH
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
+
+    // Vérif des champs obligatoires
     if (!username || !email || !password)
       return res.status(400).json({ message: "Champs manquants" });
-    if (typeof username !== "string" || username.length > 30)
-      return res.status(400).json({ message: "Pseudo invalide (max 30)" });
+
+    // Pseudo : 3 à 30 caractères
+    if (typeof username !== "string" || username.length < 3 || username.length > 30)
+      return res
+        .status(400)
+        .json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
+
+    // Email : format + domaine autorisé (gmail/hotmail/outlook)
     if (typeof email !== "string" || email.length > 100)
       return res.status(400).json({ message: "Email invalide" });
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
+      return res.status(400).json({ message: "Format d'email invalide" });
+
+    if (!ALLOWED_EMAIL.test(cleanEmail))
+      return res
+        .status(400)
+        .json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
+
+    // Mot de passe : 6 caractères minimum
     if (typeof password !== "string" || password.length < 6)
       return res
         .status(400)
-        .json({ message: "Mot de passe trop court (min 6)" });
+        .json({ message: "Le mot de passe doit faire au moins 6 caractères" });
 
-    if (await User.findOne({ where: { email } }))
+    // Unicité
+    if (await User.findOne({ where: { email: cleanEmail } }))
       return res.status(400).json({ message: "Email déjà utilisé" });
     if (await User.findOne({ where: { username } }))
       return res.status(400).json({ message: "Pseudo déjà utilisé" });
-    if (await BanList.findOne({ where: { email } }))
+
+    // Ban check
+    if (await BanList.findOne({ where: { email: cleanEmail } }))
       return res.status(403).json({ message: "🚫 Banni" });
 
+    // Création
     const hash = await bcrypt.hash(password, 10);
     const count = await User.count();
     const role = count === 0 ? "admin" : "membre";
-    const user = await User.create({ username, email, password: hash, role });
+    const user = await User.create({
+      username,
+      email: cleanEmail,
+      password: hash,
+      role,
+    });
+
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
-    res.json({ token, user: { id: user.id, username, email, role } });
+    res.json({
+      token,
+      user: { id: user.id, username, email: cleanEmail, role },
+    });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -229,13 +239,15 @@ app.post("/api/auth/login", async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: "Champs manquants" });
 
-    const user = await User.findOne({ where: { email } });
-    if (!user)
-      return res.status(400).json({ message: "Identifiants invalides" });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) return res.status(400).json({ message: "Identifiants invalides" });
+
     if (user.banned)
       return res
         .status(403)
         .json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
+
     if (!(await bcrypt.compare(password, user.password)))
       return res.status(400).json({ message: "Identifiants invalides" });
 
@@ -256,12 +268,13 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  USERS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/users", protect, async (_, res) => {
   res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
 });
+
 app.get("/api/users/me", protect, (req, res) => res.json(req.user));
 
 app.get("/api/leaderboard", protect, async (_, res) => {
@@ -278,9 +291,9 @@ app.get("/api/leaderboard", protect, async (_, res) => {
   res.json({ uno, chess });
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  ROOMS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/rooms", protect, async (_, res) => {
   let rooms = await Room.findAll({ order: [["id", "ASC"]] });
   if (rooms.length === 0) {
@@ -294,13 +307,13 @@ app.post("/api/rooms", protect, async (req, res) => {
   if (!req.body.name || typeof req.body.name !== "string")
     return res.status(400).json({ message: "Nom requis" });
   res.json(
-    await Room.create({ name: req.body.name, createdById: req.user.id }),
+    await Room.create({ name: req.body.name, createdById: req.user.id })
   );
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  MESSAGES
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/messages/room/:id", protect, async (req, res) => {
   res.json(
     await Message.findAll({
@@ -308,7 +321,7 @@ app.get("/api/messages/room/:id", protect, async (req, res) => {
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
       order: [["createdAt", "ASC"]],
       limit: 200,
-    }),
+    })
   );
 });
 
@@ -325,21 +338,20 @@ app.get("/api/messages/private/:id", protect, async (req, res) => {
       },
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
       order: [["createdAt", "ASC"]],
-    }),
+    })
   );
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  DOCUMENTS
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/documents", protect, async (_, res) => {
-  const docs = await Document.findAll({
-    include: [
-      { model: User, as: "uploadedBy", attributes: ["id", "username"] },
-    ],
-    order: [["createdAt", "DESC"]],
-  });
-  res.json(docs);
+  res.json(
+    await Document.findAll({
+      include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
+      order: [["createdAt", "DESC"]],
+    })
+  );
 });
 
 app.post("/api/documents", protect, (req, res) => {
@@ -374,12 +386,7 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
     return res.status(403).json({ message: "Non autorisé" });
 
   try {
-    const filePath = path.join(
-      __dirname,
-      "..",
-      "uploads",
-      path.basename(d.url),
-    );
+    const filePath = path.join(__dirname, "..", "uploads", path.basename(d.url));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } catch (e) {
     console.warn("[documents] fichier absent :", e.message);
@@ -389,9 +396,9 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  ADMIN
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.get("/api/admin/users", protect, adminOnly, async (_, res) => {
   res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
 });
@@ -409,6 +416,7 @@ app.post("/api/admin/mute/:id", protect, adminOnly, async (req, res) => {
   if (!u) return res.status(404).json({ message: "Introuvable" });
   if (u.role === "admin")
     return res.status(400).json({ message: "Impossible sur admin" });
+
   u.muted = true;
   u.mutedReason = req.body.reason || "";
   u.mutedUntil = req.body.durationMinutes
@@ -438,6 +446,7 @@ app.post("/api/admin/ban/:id", protect, adminOnly, async (req, res) => {
   await u.save();
   await BanList.create({ email: u.email, reason: req.body.reason || "" });
 
+  // Éjection immédiate des sockets
   const sockets = await io.in(`u:${u.id}`).fetchSockets();
   for (const s of sockets) {
     s.emit("user:banned", { reason: u.bannedReason });
@@ -486,18 +495,21 @@ app.delete("/api/admin/bans/:id", protect, adminOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
+// 👁️ Admin — Voir les MP entre 2 utilisateurs
 app.get("/api/admin/conversations", protect, adminOnly, async (_, res) => {
   const all = await Message.findAll({
     where: { receiverId: { [Op.ne]: null } },
     attributes: ["senderId", "receiverId"],
     raw: true,
   });
+
   const pairs = new Map();
   for (const m of all) {
     const a = Math.min(m.senderId, m.receiverId);
     const b = Math.max(m.senderId, m.receiverId);
     pairs.set(`${a}-${b}`, { userA: a, userB: b });
   }
+
   const list = await Promise.all(
     [...pairs.values()].map(async (p) => {
       const [a, b] = await Promise.all([
@@ -505,7 +517,7 @@ app.get("/api/admin/conversations", protect, adminOnly, async (_, res) => {
         User.findByPk(p.userB, { attributes: ["id", "username"] }),
       ]);
       return { userA: a, userB: b };
-    }),
+    })
   );
   res.json(list.filter((x) => x.userA && x.userB));
 });
@@ -528,24 +540,26 @@ app.get(
           { model: User, as: "sender", attributes: ["id", "username"] },
         ],
         order: [["createdAt", "ASC"]],
-      }),
+      })
     );
-  },
+  }
 );
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  SOCKET AUTH
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error("Token manquant"));
+
     const d = jwt.verify(token, process.env.JWT_SECRET);
     const u = await User.findByPk(d.id, {
       attributes: { exclude: ["password"] },
     });
     if (!u) return next(new Error("Introuvable"));
     if (u.banned) return next(new Error("Banni"));
+
     socket.user = u;
     next();
   } catch {
@@ -553,9 +567,9 @@ io.use(async (socket, next) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  UNO — ÉTAT
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 const unoRooms = new Map();
 let nextUnoId = 1;
 const COLORS = ["red", "yellow", "green", "blue"];
@@ -619,7 +633,7 @@ function publicState(r, uid) {
 
 function broadcastUno(room) {
   room.players.forEach((p) =>
-    io.to(`u:${p.userId}`).emit("uno:state", publicState(room, p.userId)),
+    io.to(`u:${p.userId}`).emit("uno:state", publicState(room, p.userId))
   );
   io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
 }
@@ -645,9 +659,9 @@ async function awardUnoWin(username) {
   }
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  CHESS — ÉTAT
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 const chessGames = new Map();
 let nextChessId = 1;
 
@@ -685,20 +699,23 @@ async function awardChessWin(username) {
   }
 }
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  SOCKET CONNECTION
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 io.on("connection", (socket) => {
   socket.join(`u:${socket.user.id}`);
 
+  // Vérifie mute/ban à chaque action sensible
   async function checkMod() {
     const u = await User.findByPk(socket.user.id);
     if (u.banned) return { ok: false, message: "🚫 Banni" };
+
     if (u.muted) {
+      // Auto-unmute si expiré
       if (u.mutedUntil && new Date(u.mutedUntil) < new Date()) {
         await User.update(
           { muted: false, mutedUntil: null },
-          { where: { id: u.id } },
+          { where: { id: u.id } }
         );
         return { ok: true };
       }
@@ -710,16 +727,15 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  // ─────────────── CHAT ───────────────
+  // ═══════════════════ CHAT ═══════════════════
   socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
 
+  // Message dans un salon
   const onRoomMsg = async ({ roomId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
       return socket.emit("chat:error", { message: "Message vide" });
     if (content.length > 2000)
-      return socket.emit("chat:error", {
-        message: "Message trop long (max 2000)",
-      });
+      return socket.emit("chat:error", { message: "Message trop long (max 2000)" });
 
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
@@ -737,13 +753,12 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:room", onRoomMsg);
 
+  // Message privé
   const onPrivate = async ({ receiverId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
       return socket.emit("chat:error", { message: "Message vide" });
     if (content.length > 2000)
-      return socket.emit("chat:error", {
-        message: "Message trop long (max 2000)",
-      });
+      return socket.emit("chat:error", { message: "Message trop long (max 2000)" });
 
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
@@ -762,7 +777,28 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:private", onPrivate);
 
-  // 🧩 Injection de code — admin uniquement
+  // ✍️ Indicateur "est en train d'écrire"
+  // On envoie au salon (sauf à l'auteur du message)
+  socket.on("chat:typing", ({ roomId, isTyping }) => {
+    if (!roomId) return;
+    socket.to(`r:${roomId}`).emit("chat:typing", {
+      userId: socket.user.id,
+      username: socket.user.username,
+      isTyping: !!isTyping,
+    });
+  });
+
+  // ✍️ Même chose pour les MP
+  socket.on("chat:typing:private", ({ receiverId, isTyping }) => {
+    if (!receiverId) return;
+    io.to(`u:${receiverId}`).emit("chat:typing:private", {
+      userId: socket.user.id,
+      username: socket.user.username,
+      isTyping: !!isTyping,
+    });
+  });
+
+  // 🧩 Injection de code admin
   socket.on("chat:inject", ({ code }) => {
     if (socket.user.role !== "admin") return;
     if (!code || typeof code !== "string" || !code.trim()) return;
@@ -771,7 +807,7 @@ io.on("connection", (socket) => {
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // ─────────────── UNO ───────────────
+  // ═══════════════════ UNO ═══════════════════
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -780,8 +816,7 @@ io.on("connection", (socket) => {
 
   socket.on("uno:create", ({ name }, cb) => {
     const id = String(nextUnoId++);
-    const safeName =
-      typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
+    const safeName = typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
     const room = {
       id,
       name: safeName,
@@ -814,6 +849,7 @@ io.on("connection", (socket) => {
     const r = unoRooms.get(roomId);
     if (!r) return cb && cb({ ok: false, error: "Introuvable" });
 
+    // Rejoin autorisé si déjà dans la partie
     const existing = r.players.find((p) => p.userId === socket.user.id);
     if (existing) {
       r.emptiedAt = null;
@@ -841,7 +877,9 @@ io.on("connection", (socket) => {
   socket.on("uno:leave", ({ roomId }) => {
     const r = unoRooms.get(roomId);
     if (!r) return;
+
     r.players = r.players.filter((p) => p.userId !== socket.user.id);
+
     if (r.players.length === 0) {
       if (r.status === "waiting") {
         r.emptiedAt = Date.now();
@@ -860,6 +898,7 @@ io.on("connection", (socket) => {
     if (!r || r.hostId !== socket.user.id) return;
     if (r.players.length < 2)
       return socket.emit("chat:error", { message: "Min 2 joueurs" });
+
     r.deck = buildDeck();
     r.discard = [];
     r.direction = 1;
@@ -868,10 +907,12 @@ io.on("connection", (socket) => {
     r.winner = null;
     r.pendingDraw = 0;
     r.pendingType = null;
+
     r.players.forEach((p) => {
       p.hand = r.deck.splice(0, 7);
       p.calledUno = false;
     });
+
     let top = r.deck.pop();
     while (top.value === "wild4") {
       r.deck.unshift(top);
@@ -885,8 +926,10 @@ io.on("connection", (socket) => {
   socket.on("uno:play", ({ roomId, cardIndex, chosenColor }) => {
     const r = unoRooms.get(roomId);
     if (!r || r.status !== "playing") return;
+
     const me = r.players.find((p) => p.userId === socket.user.id);
     if (!me) return;
+
     if (r.players[r.currentTurn].userId !== socket.user.id)
       return socket.emit("chat:error", { message: "Pas ton tour" });
 
@@ -894,6 +937,7 @@ io.on("connection", (socket) => {
     if (!card) return;
     const top = r.discard[r.discard.length - 1];
 
+    // Règle du stacking : +2 sur +2, +4 sur +4 (pas croisé)
     if (r.pendingDraw > 0) {
       if (r.pendingType === "draw2" && card.value !== "draw2")
         return socket.emit("chat:error", {
@@ -943,18 +987,20 @@ io.on("connection", (socket) => {
       next();
     }
 
+    // Victoire
     if (me.hand.length === 0) {
       r.status = "finished";
       r.winner = me.username;
       broadcastUno(r);
       awardUnoWin(me.username);
+
       const target = r.id;
       setTimeout(() => {
         if (unoRooms.get(target) !== r) return;
         r.players.forEach((p) =>
-          io
-            .to(`u:${p.userId}`)
-            .emit("uno:kicked", { reason: "Partie terminée" }),
+          io.to(`u:${p.userId}`).emit("uno:kicked", {
+            reason: "Partie terminée",
+          })
         );
         unoRooms.delete(target);
         io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
@@ -967,12 +1013,14 @@ io.on("connection", (socket) => {
   socket.on("uno:draw", ({ roomId }) => {
     const r = unoRooms.get(roomId);
     if (!r || r.status !== "playing") return;
+
     const me = r.players.find((p) => p.userId === socket.user.id);
     if (!me) return;
     if (r.players[r.currentTurn].userId !== socket.user.id) return;
 
     const count = r.pendingDraw > 0 ? r.pendingDraw : 1;
     for (let i = 0; i < count; i++) me.hand.push(drawCard(r));
+
     const hadPending = r.pendingDraw > 0;
     r.pendingDraw = 0;
     r.pendingType = null;
@@ -993,7 +1041,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ─────────────── CHESS ───────────────
+  // ═══════════════════ CHESS ═══════════════════
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -1002,8 +1050,7 @@ io.on("connection", (socket) => {
 
   socket.on("chess:create", ({ name }, cb) => {
     const id = String(nextChessId++);
-    const safeName =
-      typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
+    const safeName = typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
     const game = {
       id,
       name: safeName,
@@ -1024,6 +1071,7 @@ io.on("connection", (socket) => {
     const g = chessGames.get(gameId);
     if (!g) return cb && cb({ ok: false, error: "Introuvable" });
 
+    // Rejoin autorisé si déjà dans la partie
     if (g.white?.id === socket.user.id || g.black?.id === socket.user.id) {
       g.emptiedAt = null;
       socket.emit("chess:state", publicChess(g));
@@ -1033,6 +1081,7 @@ io.on("connection", (socket) => {
 
     if (g.status !== "waiting")
       return cb && cb({ ok: false, error: "Partie déjà commencée" });
+
     if (!g.black) {
       g.black = socket.user;
       g.status = "playing";
@@ -1047,9 +1096,11 @@ io.on("connection", (socket) => {
   socket.on("chess:move", ({ gameId, from, to, promotion }) => {
     const g = chessGames.get(gameId);
     if (!g || g.status !== "playing") return;
+
     const isWhite = g.white?.id === socket.user.id;
     const isBlack = g.black?.id === socket.user.id;
     if (!isWhite && !isBlack) return;
+
     const myTurn =
       (g.game.turn() === "w" && isWhite) || (g.game.turn() === "b" && isBlack);
     if (!myTurn) return socket.emit("chat:error", { message: "Pas ton tour" });
@@ -1058,6 +1109,7 @@ io.on("connection", (socket) => {
       const move = g.game.move({ from, to, promotion: promotion || "q" });
       if (!move) return;
       g.lastMove = move;
+
       let finished = false;
       if (g.game.isCheckmate()) {
         g.status = "finished";
@@ -1094,6 +1146,7 @@ io.on("connection", (socket) => {
       g.white?.id === socket.user.id ? g.black?.username : g.white?.username;
     broadcastChess(g);
     awardChessWin(g.winner);
+
     const target = g.id;
     setTimeout(() => {
       if (chessGames.get(target) !== g) return;
@@ -1115,17 +1168,18 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     User.update({ online: false }, { where: { id: socket.user.id } }).catch(
-      () => {},
+      () => {}
     );
   });
 });
 
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  ADMIN — GAMES
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   if (!unoRooms.has(req.params.roomId))
     return res.status(404).json({ message: "Salon introuvable" });
+
   const room = unoRooms.get(req.params.roomId);
   room.players.forEach((p) => io.to(`u:${p.userId}`).emit("uno:kicked"));
   unoRooms.delete(req.params.roomId);
@@ -1133,20 +1187,28 @@ app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/admin/chess/games/:gameId", protect, adminOnly, (req, res) => {
-  if (!chessGames.has(req.params.gameId))
-    return res.status(404).json({ message: "Partie introuvable" });
-  const g = chessGames.get(req.params.gameId);
-  if (g.white) io.to(`u:${g.white.id}`).emit("chess:deleted");
-  if (g.black) io.to(`u:${g.black.id}`).emit("chess:deleted");
-  chessGames.delete(req.params.gameId);
-  io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
-  res.json({ ok: true });
-});
+app.delete(
+  "/api/admin/chess/games/:gameId",
+  protect,
+  adminOnly,
+  (req, res) => {
+    if (!chessGames.has(req.params.gameId))
+      return res.status(404).json({ message: "Partie introuvable" });
 
-// ═══════════════════════════════════════════════════════
+    const g = chessGames.get(req.params.gameId);
+    if (g.white) io.to(`u:${g.white.id}`).emit("chess:deleted");
+    if (g.black) io.to(`u:${g.black.id}`).emit("chess:deleted");
+    chessGames.delete(req.params.gameId);
+    io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
+    res.json({ ok: true });
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
 //  PURGE MÉMOIRE
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
+// Supprime les messages > 7 jours
 async function purgeOldMessages() {
   try {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -1161,72 +1223,64 @@ async function purgeOldMessages() {
 setTimeout(purgeOldMessages, 10_000);
 setInterval(purgeOldMessages, 6 * 60 * 60 * 1000);
 
-setInterval(
-  async () => {
-    try {
-      const rooms = await Room.findAll();
-      for (const room of rooms) {
-        const count = await Message.count({ where: { roomId: room.id } });
-        if (count <= 1000) continue;
-        const old = await Message.findAll({
-          where: { roomId: room.id },
-          order: [["createdAt", "ASC"]],
-          limit: count - 1000,
-          attributes: ["id"],
-        });
-        const ids = old.map((m) => m.id);
-        if (ids.length) {
-          await Message.destroy({ where: { id: ids } });
-          console.log(
-            `🧹 Salon ${room.name} : ${ids.length} anciens messages supprimés`,
-          );
-        }
-      }
-    } catch (e) {
-      console.error("[purge/rooms]", e);
-    }
-  },
-  30 * 60 * 1000,
-);
+// Cap à 1000 messages par salon
+setInterval(async () => {
+  try {
+    const rooms = await Room.findAll();
+    for (const room of rooms) {
+      const count = await Message.count({ where: { roomId: room.id } });
+      if (count <= 1000) continue;
 
+      const old = await Message.findAll({
+        where: { roomId: room.id },
+        order: [["createdAt", "ASC"]],
+        limit: count - 1000,
+        attributes: ["id"],
+      });
+      const ids = old.map((m) => m.id);
+      if (ids.length) {
+        await Message.destroy({ where: { id: ids } });
+        console.log(
+          `🧹 Salon ${room.name} : ${ids.length} anciens messages supprimés`
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[purge/rooms]", e);
+  }
+}, 30 * 60 * 1000);
+
+// Nettoyage des salons/parties vides (> 5 min)
 setInterval(() => {
   const now = Date.now();
   let changedUno = false;
   let changedChess = false;
 
   for (const [id, r] of unoRooms.entries()) {
-    if (
-      r.players.length === 0 &&
-      r.emptiedAt &&
-      now - r.emptiedAt > 5 * 60_000
-    ) {
+    if (r.players.length === 0 && r.emptiedAt && now - r.emptiedAt > 5 * 60_000) {
       unoRooms.delete(id);
       changedUno = true;
     }
   }
   for (const [id, g] of chessGames.entries()) {
-    if (
-      g.status === "waiting" &&
-      g.emptiedAt &&
-      now - g.emptiedAt > 5 * 60_000
-    ) {
+    if (g.status === "waiting" && g.emptiedAt && now - g.emptiedAt > 5 * 60_000) {
       chessGames.delete(id);
       changedChess = true;
     }
   }
+
   if (changedUno) io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
   if (changedChess)
     io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
-// ═══════════════════════════════════════════════════════
-//  START
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  DÉMARRAGE
+// ═══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
+
 connectDB().then(() =>
   server.listen(PORT, () =>
-    console.log(
-      `🚀 Backend prêt sur ${PORT} (${process.env.NODE_ENV || "dev"})`,
-    ),
-  ),
+    console.log(`🚀 Backend prêt sur ${PORT} (${process.env.NODE_ENV || "dev"})`)
+  )
 );
