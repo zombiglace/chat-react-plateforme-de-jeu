@@ -3,7 +3,9 @@ import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 
 const SocketContext = createContext(null);
-const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+// ⚠️ URL en dur — Vercel ne gère pas toujours les variables d'env
+const API_URL = "https://chat-react-api.onrender.com";
 
 export function SocketProvider({ children }) {
   const { user } = useAuth();
@@ -14,19 +16,17 @@ export function SocketProvider({ children }) {
       setSocket(null);
       return;
     }
+
     const token = localStorage.getItem("token");
     console.log("🔌 Connexion socket…");
 
-    const s = io(API, {
+    const s = io(API_URL, {
       auth: { token },
       transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 10,
     });
 
     s.on("connect", () => console.log("✅ Socket connecté", s.id));
-    s.on("disconnect", (r) => console.log("🔌 Socket déconnecté:", r));
-    s.on("connect_error", (e) => console.error("❌ Socket erreur:", e.message));
+    s.on("connect_error", (e) => console.error("❌ Socket err:", e.message));
 
     setSocket(s);
 
@@ -35,9 +35,11 @@ export function SocketProvider({ children }) {
       s.disconnect();
       setSocket(null);
     };
-  }, [user?.id]); // ✅ dépend uniquement de l'ID utilisateur (stable)
+  }, [user?.id]);
 
-  return <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>;
+  return (
+    <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>
+  );
 }
 
 export const useSocket = () => useContext(SocketContext);
