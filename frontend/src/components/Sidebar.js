@@ -15,7 +15,6 @@ export default function Sidebar() {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [privateWith, setPrivateWith] = useState(null);
 
-  // Charge les salons
   useEffect(() => {
     api.get("/rooms").then((r) => {
       setRooms(r.data);
@@ -23,7 +22,6 @@ export default function Sidebar() {
     });
   }, []);
 
-  // Charge les utilisateurs (refresh toutes les 15s)
   useEffect(() => {
     const load = () =>
       api
@@ -34,31 +32,26 @@ export default function Sidebar() {
     return () => clearInterval(t);
   }, [user.id]);
 
-  // Ban immédiat : coupe la session dès que l'event arrive
   useEffect(() => {
     if (!socket) return;
     const onBanned = ({ reason }) => {
-      alert(
-        "🚫 Tu as été banni de la plateforme" + (reason ? " : " + reason : ""),
-      );
+      alert("🚫 Tu as été banni" + (reason ? " : " + reason : ""));
       logout();
     };
     socket.on("user:banned", onBanned);
     return () => socket.off("user:banned", onBanned);
   }, [socket, logout]);
 
-  const handleRoomSelect = (r) => {
+  const selectRoom = (r) => {
     setCurrentRoom(r);
     setPrivateWith(null);
     if (loc.pathname !== "/") navigate("/");
   };
 
-  const handlePrivateSelect = (u) => {
+  const selectPrivate = (u) => {
     setPrivateWith(u);
     if (loc.pathname !== "/") navigate("/");
   };
-
-  const handleBackToRoom = () => setPrivateWith(null);
 
   return (
     <div className="app-layout">
@@ -69,9 +62,7 @@ export default function Sidebar() {
             <span className="sb-avatar">{user.username[0].toUpperCase()}</span>
             <div className="sb-user-info">
               <span className="sb-username">{user.username}</span>
-              <span className={`sb-role sb-role-${user.role}`}>
-                {user.role}
-              </span>
+              <span className={`sb-role sb-role-${user.role}`}>{user.role}</span>
             </div>
           </div>
         </div>
@@ -85,7 +76,9 @@ export default function Sidebar() {
           </Link>
           <Link
             to="/documents"
-            className={`sb-nav-item ${loc.pathname === "/documents" ? "active" : ""}`}
+            className={`sb-nav-item ${
+              loc.pathname === "/documents" ? "active" : ""
+            }`}
           >
             <span className="sb-icon">📁</span> Documents
           </Link>
@@ -111,10 +104,12 @@ export default function Sidebar() {
             {rooms.map((r) => (
               <button
                 key={r.id}
-                className={`sb-item ${currentRoom?.id === r.id && !privateWith ? "active" : ""}`}
+                className={`sb-item ${
+                  currentRoom?.id === r.id && !privateWith ? "active" : ""
+                }`}
                 onClick={() => {
-                  handleBackToRoom();
-                  handleRoomSelect(r);
+                  setPrivateWith(null);
+                  selectRoom(r);
                 }}
               >
                 <span className="sb-hash">#</span> {r.name}
@@ -130,7 +125,7 @@ export default function Sidebar() {
               <button
                 key={u.id}
                 className={`sb-item ${privateWith?.id === u.id ? "active" : ""}`}
-                onClick={() => handlePrivateSelect(u)}
+                onClick={() => selectPrivate(u)}
               >
                 <span className={`sb-dot ${u.online ? "online" : ""}`} />
                 <span className="sb-uname">{u.username}</span>
