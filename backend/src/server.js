@@ -16,13 +16,10 @@ const { Chess } = require("chess.js");
 const { connectDB, User, Message, Room, Document, BanList } = require("./config/db");
 
 // ═══════════════════════════════════════════════════════════════
-//  CONFIG GÉNÉRALE
+//  CONFIG
 // ═══════════════════════════════════════════════════════════════
-
-// Emails autorisés (gmail, hotmail, outlook)
 const ALLOWED_EMAIL = /@(gmail|hotmail|outlook)\.(com|fr)$/i;
 
-// CORS permissif — la sécurité passe par le JWT, pas par les cookies
 const corsOptions = {
   origin: true,
   credentials: true,
@@ -53,7 +50,6 @@ app.use(
   })
 );
 
-// Rate limiting : 10 tentatives / 15 min pour auth, 200 req/min pour l'API
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -74,9 +70,6 @@ app.use("/api/", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 
-// ═══════════════════════════════════════════════════════════════
-//  BODY PARSER
-// ═══════════════════════════════════════════════════════════════
 app.use(express.json({ limit: "1mb" }));
 
 // ═══════════════════════════════════════════════════════════════
@@ -121,7 +114,6 @@ const upload = multer({
   },
 });
 
-// Sert les fichiers en refusant l'exécution HTML
 app.use(
   "/uploads",
   express.static(uploadDir, {
@@ -170,17 +162,14 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Vérif des champs obligatoires
     if (!username || !email || !password)
       return res.status(400).json({ message: "Champs manquants" });
 
-    // Pseudo : 3 à 30 caractères
     if (typeof username !== "string" || username.length < 3 || username.length > 30)
       return res
         .status(400)
         .json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
 
-    // Email : format + domaine autorisé (gmail/hotmail/outlook)
     if (typeof email !== "string" || email.length > 100)
       return res.status(400).json({ message: "Email invalide" });
 
@@ -194,23 +183,18 @@ app.post("/api/auth/register", async (req, res) => {
         .status(400)
         .json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
 
-    // Mot de passe : 6 caractères minimum
     if (typeof password !== "string" || password.length < 6)
       return res
         .status(400)
         .json({ message: "Le mot de passe doit faire au moins 6 caractères" });
 
-    // Unicité
     if (await User.findOne({ where: { email: cleanEmail } }))
       return res.status(400).json({ message: "Email déjà utilisé" });
     if (await User.findOne({ where: { username } }))
       return res.status(400).json({ message: "Pseudo déjà utilisé" });
-
-    // Ban check
     if (await BanList.findOne({ where: { email: cleanEmail } }))
       return res.status(403).json({ message: "🚫 Banni" });
 
-    // Création
     const hash = await bcrypt.hash(password, 10);
     const count = await User.count();
     const role = count === 0 ? "admin" : "membre";
@@ -274,7 +258,6 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/users", protect, async (_, res) => {
   res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
 });
-
 app.get("/api/users/me", protect, (req, res) => res.json(req.user));
 
 app.get("/api/leaderboard", protect, async (_, res) => {
@@ -397,6 +380,278 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+//  MES DONNÉES (RGPD — droits utilisateur)
+// ═══════════════════════════════════════════════════════════════
+
+// 📥 DROIT D'ACCÈS ET PORTABILITÉ (art. 15 et 20 RGPD)
+app.get("/api/me/export", protect, async (req, res) => {
+  try {
+    const me = await User.findByPk(req.user.id, {
+      attributes: { exclude: ["password"] },
+    });
+
+    const myMessages = await Message.findAll({
+      where: { senderId: req.user.id, roomId: { [Op.ne]: null } },
+      attributes: ["id", "content", "roomId", "createdAt"],
+      order: [["createdAt", "ASC"]],
+    });
+
+    const myPrivateMessages = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { senderId: req.user.id, receiverId: { [Op.ne]: null } },
+          { receiverId: req.user.id },
+        ],
+      },
+      include: [
+        { model: User, as: "sender", attributes: ["id", "username"] },
+        { model: User, as: "receiver", attributes: ["id", "username"] },
+      ],
+      order: [["createdAt", "ASC"]],
+    });
+
+    const myDocuments = await Document.findAll({
+      where: { uploadedById: req.user.id },
+      attributes: ["id", "name", "url", "size", "mimetype", "createdAt"],
+    });
+
+    const myRooms = await Room.findAll({
+      where: { createdById: req.user.id },
+      attributes: ["id", "name", "description", "createdAt"],
+    });
+
+    const myBans = await BanList.findAll({
+      where: { email: me.email },
+      attributes: ["reason", "createdAt"],
+    });
+
+    const exportData = {
+      export_info: {
+        generated_at: new Date().toISOString(),
+        rgpd_article: "Article 15 et 20 du RGPD — Droit d'accès et portabilité",
+        format: "JSON",
+        version: "1.0",
+      },
+      account: {
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        role: me.role,
+        created_at: me.createdAt,
+        updated_at: me.updatedAt,
+        uno_wins: me.unoWins,
+        chess_wins: me.chessWins,
+        muted: me.muted,
+        muted_reason: me.mutedReason || null,
+        muted_until: me.mutedUntil || null,
+        banned: me.banned,
+        banned_reason: me.bannedReason || null,
+      },
+      public_messages: myMessages.map((m) => ({
+        id: m.id,
+        room_id: m.roomId,
+        content: m.content,
+        sent_at: m.createdAt,
+      })),
+      private_messages: myPrivateMessages.map((m) => ({
+        id: m.id,
+        sender: m.sender?.username || "?",
+        receiver: m.receiver?.username || "?",
+        content: m.content,
+        sent_at: m.createdAt,
+      })),
+      documents: myDocuments.map((d) => ({
+        id: d.id,
+        name: d.name,
+        url: d.url,
+        size_bytes: d.size,
+        type: d.mimetype,
+        uploaded_at: d.createdAt,
+      })),
+      rooms_created: myRooms.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        created_at: r.createdAt,
+      })),
+      ban_history: myBans.map((b) => ({
+        reason: b.reason,
+        date: b.createdAt,
+      })),
+    };
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="mes-donnees-${me.username}-${Date.now()}.json"`
+    );
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json(exportData);
+  } catch (e) {
+    console.error("[RGPD export]", e);
+    res.status(500).json({ message: "Erreur lors de l'export" });
+  }
+});
+
+// ✏️ DROIT DE RECTIFICATION (art. 16 RGPD)
+app.put("/api/me/update", protect, async (req, res) => {
+  try {
+    const { username, email, currentPassword, newPassword } = req.body;
+
+    const me = await User.findByPk(req.user.id);
+    if (!me) return res.status(404).json({ message: "Compte introuvable" });
+
+    const wantsPasswordChange = newPassword && newPassword.length > 0;
+    const wantsEmailChange = email && email !== me.email;
+    const wantsUsernameChange = username && username !== me.username;
+
+    if (
+      (wantsPasswordChange || wantsEmailChange || wantsUsernameChange) &&
+      !currentPassword
+    ) {
+      return res.status(400).json({
+        message: "Mot de passe actuel requis pour modifier tes informations",
+      });
+    }
+
+    if (currentPassword) {
+      const ok = await bcrypt.compare(currentPassword, me.password);
+      if (!ok)
+        return res.status(400).json({ message: "Mot de passe actuel incorrect" });
+    }
+
+    if (wantsUsernameChange) {
+      if (username.length < 3 || username.length > 30)
+        return res
+          .status(400)
+          .json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
+      const exists = await User.findOne({ where: { username } });
+      if (exists)
+        return res.status(400).json({ message: "Ce pseudo est déjà pris" });
+      me.username = username;
+    }
+
+    if (wantsEmailChange) {
+      const cleanEmail = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
+        return res.status(400).json({ message: "Format d'email invalide" });
+      if (!ALLOWED_EMAIL.test(cleanEmail))
+        return res
+          .status(400)
+          .json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
+      const exists = await User.findOne({ where: { email: cleanEmail } });
+      if (exists)
+        return res.status(400).json({ message: "Cet email est déjà utilisé" });
+      me.email = cleanEmail;
+    }
+
+    if (wantsPasswordChange) {
+      if (newPassword.length < 6)
+        return res
+          .status(400)
+          .json({ message: "Le mot de passe doit faire au moins 6 caractères" });
+      me.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    await me.save();
+
+    res.json({
+      ok: true,
+      user: {
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        role: me.role,
+      },
+    });
+  } catch (e) {
+    console.error("[RGPD update]", e);
+    res.status(500).json({ message: "Erreur lors de la mise à jour" });
+  }
+});
+
+// 🗑️ DROIT À L'EFFACEMENT (art. 17 RGPD)
+app.delete("/api/me/delete", protect, async (req, res) => {
+  try {
+    const { password, confirm } = req.body;
+
+    if (confirm !== "SUPPRIMER") {
+      return res.status(400).json({
+        message: 'Tape "SUPPRIMER" pour confirmer la suppression',
+      });
+    }
+
+    const me = await User.findByPk(req.user.id);
+    if (!me) return res.status(404).json({ message: "Compte introuvable" });
+
+    if (!password)
+      return res.status(400).json({ message: "Mot de passe requis" });
+
+    const ok = await bcrypt.compare(password, me.password);
+    if (!ok)
+      return res.status(400).json({ message: "Mot de passe incorrect" });
+
+    const email = me.email;
+    const userId = me.id;
+
+    // 1. Ajouter à la liste des bannissements
+    await BanList.create({
+      email,
+      reason: "Suppression volontaire du compte (RGPD art. 17)",
+    });
+
+    // 2. Anonymiser les messages publics (préserver les conversations des autres)
+    await Message.update(
+      { senderId: 1 },
+      { where: { senderId: userId, roomId: { [Op.ne]: null } } }
+    );
+
+    // 3. Supprimer les messages privés
+    await Message.destroy({
+      where: {
+        [Op.or]: [{ senderId: userId }, { receiverId: userId }],
+      },
+    });
+
+    // 4. Supprimer les documents + fichiers physiques
+    const myDocs = await Document.findAll({ where: { uploadedById: userId } });
+    for (const doc of myDocs) {
+      try {
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "uploads",
+          path.basename(doc.url)
+        );
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {
+        console.warn("[RGPD delete] fichier absent :", e.message);
+      }
+    }
+    await Document.destroy({ where: { uploadedById: userId } });
+
+    // 5. Éjecter les sockets actives
+    const sockets = await io.in(`u:${userId}`).fetchSockets();
+    for (const s of sockets) {
+      s.emit("user:deleted", { reason: "Compte supprimé (RGPD)" });
+      s.disconnect(true);
+    }
+
+    // 6. Supprimer le compte
+    await me.destroy();
+
+    console.log(`🗑️ Compte supprimé (RGPD) : ${email}`);
+
+    res.json({
+      ok: true,
+      message: "Ton compte et tes données ont été supprimés définitivement",
+    });
+  } catch (e) {
+    console.error("[RGPD delete]", e);
+    res.status(500).json({ message: "Erreur lors de la suppression" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 //  ADMIN
 // ═══════════════════════════════════════════════════════════════
 app.get("/api/admin/users", protect, adminOnly, async (_, res) => {
@@ -446,7 +701,6 @@ app.post("/api/admin/ban/:id", protect, adminOnly, async (req, res) => {
   await u.save();
   await BanList.create({ email: u.email, reason: req.body.reason || "" });
 
-  // Éjection immédiate des sockets
   const sockets = await io.in(`u:${u.id}`).fetchSockets();
   for (const s of sockets) {
     s.emit("user:banned", { reason: u.bannedReason });
@@ -495,7 +749,6 @@ app.delete("/api/admin/bans/:id", protect, adminOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// 👁️ Admin — Voir les MP entre 2 utilisateurs
 app.get("/api/admin/conversations", protect, adminOnly, async (_, res) => {
   const all = await Message.findAll({
     where: { receiverId: { [Op.ne]: null } },
@@ -703,15 +956,13 @@ async function awardChessWin(username) {
 //  SOCKET CONNECTION
 // ═══════════════════════════════════════════════════════════════
 io.on("connection", (socket) => {
+  console.log(`🔌 Connecté: ${socket.user.username} (id ${socket.user.id})`);
   socket.join(`u:${socket.user.id}`);
 
-  // Vérifie mute/ban à chaque action sensible
   async function checkMod() {
     const u = await User.findByPk(socket.user.id);
     if (u.banned) return { ok: false, message: "🚫 Banni" };
-
     if (u.muted) {
-      // Auto-unmute si expiré
       if (u.mutedUntil && new Date(u.mutedUntil) < new Date()) {
         await User.update(
           { muted: false, mutedUntil: null },
@@ -727,15 +978,17 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  // ═══════════════════ CHAT ═══════════════════
-  socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
+  // ─────────────── CHAT ───────────────
+  socket.on("chat:join", ({ roomId }) => {
+    socket.join(`r:${roomId}`);
+    console.log(`📥 ${socket.user.username} join r:${roomId}`);
+  });
 
-  // Message dans un salon
   const onRoomMsg = async ({ roomId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
       return socket.emit("chat:error", { message: "Message vide" });
     if (content.length > 2000)
-      return socket.emit("chat:error", { message: "Message trop long (max 2000)" });
+      return socket.emit("chat:error", { message: "Message trop long" });
 
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
@@ -753,12 +1006,11 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:room", onRoomMsg);
 
-  // Message privé
   const onPrivate = async ({ receiverId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
       return socket.emit("chat:error", { message: "Message vide" });
     if (content.length > 2000)
-      return socket.emit("chat:error", { message: "Message trop long (max 2000)" });
+      return socket.emit("chat:error", { message: "Message trop long" });
 
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
@@ -777,12 +1029,9 @@ io.on("connection", (socket) => {
   };
   socket.on("chat:private", onPrivate);
 
-  // ✍️ Indicateur "est en train d'écrire"
-  // On envoie au salon (sauf à l'auteur du message)
-    // ✍️ Indicateur "est en train d'écrire" — SALON
+  // ✍️ TYPING SALON
   socket.on("chat:typing", ({ roomId, isTyping }) => {
     if (!roomId) return;
-    console.log(`✍️ ${socket.user.username} typing=${isTyping} dans r:${roomId}`);
     socket.to(`r:${roomId}`).emit("chat:typing", {
       userId: socket.user.id,
       username: socket.user.username,
@@ -790,10 +1039,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ✍️ Indicateur "est en train d'écrire" — MP
+  // ✍️ TYPING MP
   socket.on("chat:typing:private", ({ receiverId, isTyping }) => {
     if (!receiverId) return;
-    console.log(`✍️ ${socket.user.username} typing=${isTyping} → user ${receiverId}`);
     io.to(`u:${receiverId}`).emit("chat:typing:private", {
       userId: socket.user.id,
       username: socket.user.username,
@@ -801,7 +1049,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🧩 Injection de code admin
+  // 🧩 Injection de code
   socket.on("chat:inject", ({ code }) => {
     if (socket.user.role !== "admin") return;
     if (!code || typeof code !== "string" || !code.trim()) return;
@@ -810,7 +1058,7 @@ io.on("connection", (socket) => {
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // ═══════════════════ UNO ═══════════════════
+  // ─────────────── UNO ───────────────
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -852,7 +1100,6 @@ io.on("connection", (socket) => {
     const r = unoRooms.get(roomId);
     if (!r) return cb && cb({ ok: false, error: "Introuvable" });
 
-    // Rejoin autorisé si déjà dans la partie
     const existing = r.players.find((p) => p.userId === socket.user.id);
     if (existing) {
       r.emptiedAt = null;
@@ -880,9 +1127,7 @@ io.on("connection", (socket) => {
   socket.on("uno:leave", ({ roomId }) => {
     const r = unoRooms.get(roomId);
     if (!r) return;
-
     r.players = r.players.filter((p) => p.userId !== socket.user.id);
-
     if (r.players.length === 0) {
       if (r.status === "waiting") {
         r.emptiedAt = Date.now();
@@ -940,7 +1185,6 @@ io.on("connection", (socket) => {
     if (!card) return;
     const top = r.discard[r.discard.length - 1];
 
-    // Règle du stacking : +2 sur +2, +4 sur +4 (pas croisé)
     if (r.pendingDraw > 0) {
       if (r.pendingType === "draw2" && card.value !== "draw2")
         return socket.emit("chat:error", {
@@ -990,7 +1234,6 @@ io.on("connection", (socket) => {
       next();
     }
 
-    // Victoire
     if (me.hand.length === 0) {
       r.status = "finished";
       r.winner = me.username;
@@ -1044,7 +1287,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ═══════════════════ CHESS ═══════════════════
+  // ─────────────── CHESS ───────────────
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -1074,7 +1317,6 @@ io.on("connection", (socket) => {
     const g = chessGames.get(gameId);
     if (!g) return cb && cb({ ok: false, error: "Introuvable" });
 
-    // Rejoin autorisé si déjà dans la partie
     if (g.white?.id === socket.user.id || g.black?.id === socket.user.id) {
       g.emptiedAt = null;
       socket.emit("chess:state", publicChess(g));
@@ -1170,6 +1412,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    console.log(`❌ Déconnecté: ${socket.user.username}`);
     User.update({ online: false }, { where: { id: socket.user.id } }).catch(
       () => {}
     );
@@ -1208,10 +1451,8 @@ app.delete(
 );
 
 // ═══════════════════════════════════════════════════════════════
-//  PURGE MÉMOIRE
+//  PURGE
 // ═══════════════════════════════════════════════════════════════
-
-// Supprime les messages > 7 jours
 async function purgeOldMessages() {
   try {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -1226,34 +1467,6 @@ async function purgeOldMessages() {
 setTimeout(purgeOldMessages, 10_000);
 setInterval(purgeOldMessages, 6 * 60 * 60 * 1000);
 
-// Cap à 1000 messages par salon
-setInterval(async () => {
-  try {
-    const rooms = await Room.findAll();
-    for (const room of rooms) {
-      const count = await Message.count({ where: { roomId: room.id } });
-      if (count <= 1000) continue;
-
-      const old = await Message.findAll({
-        where: { roomId: room.id },
-        order: [["createdAt", "ASC"]],
-        limit: count - 1000,
-        attributes: ["id"],
-      });
-      const ids = old.map((m) => m.id);
-      if (ids.length) {
-        await Message.destroy({ where: { id: ids } });
-        console.log(
-          `🧹 Salon ${room.name} : ${ids.length} anciens messages supprimés`
-        );
-      }
-    }
-  } catch (e) {
-    console.error("[purge/rooms]", e);
-  }
-}, 30 * 60 * 1000);
-
-// Nettoyage des salons/parties vides (> 5 min)
 setInterval(() => {
   const now = Date.now();
   let changedUno = false;
@@ -1271,19 +1484,17 @@ setInterval(() => {
       changedChess = true;
     }
   }
-
   if (changedUno) io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
   if (changedChess)
     io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
 // ═══════════════════════════════════════════════════════════════
-//  DÉMARRAGE
+//  START
 // ═══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
-
 connectDB().then(() =>
   server.listen(PORT, () =>
-    console.log(`🚀 Backend prêt sur ${PORT} (${process.env.NODE_ENV || "dev"})`)
+    console.log(`🚀 Backend prêt sur ${PORT}`)
   )
 );
