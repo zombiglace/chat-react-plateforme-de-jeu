@@ -6,6 +6,7 @@ import Chat from "./components/Chat";
 import Documents from "./components/Documents";
 import AdminPanel from "./components/AdminPanel";
 import Games from "./components/Games";
+import MonCompte from "./components/MonCompte";
 import MentionsLegales from "./components/MentionsLegales";
 import PolitiqueConfidentialite from "./components/PolitiqueConfidentialite";
 import Accessibilite from "./components/Accessibilite";
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
 
       {/* Pages légales accessibles sans connexion */}
+
       <Route path="/mentions-legales" element={<MentionsLegales />} />
       <Route path="/confidentialite" element={<PolitiqueConfidentialite />} />
       <Route path="/accessibilite" element={<Accessibilite />} />
@@ -32,6 +34,7 @@ export default function App() {
         <Route path="/" element={<Chat />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/games" element={<Games />} />
+        <Route path="/mon-compte" element={<MonCompte />} />
         <Route
           path="/admin"
           element={
