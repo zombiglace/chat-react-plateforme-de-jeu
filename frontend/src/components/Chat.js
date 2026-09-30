@@ -13,15 +13,19 @@ export default function Chat() {
 
   const [messages, setMessages] = useState([]);
   const [toast, setToast] = useState("");
-  // Qui est en train d'écrire dans la conversation courante
   const [typingUsers, setTypingUsers] = useState([]);
 
   const currentRoomRef = useRef(null);
   const privateWithRef = useRef(null);
-  useEffect(() => { currentRoomRef.current = currentRoom; }, [currentRoom]);
-  useEffect(() => { privateWithRef.current = privateWith; }, [privateWith]);
 
-  // Charge les messages quand on change de salon/MP
+  useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
+
+  useEffect(() => {
+    privateWithRef.current = privateWith;
+  }, [privateWith]);
+
   useEffect(() => {
     if (!socket || !currentRoom) return;
     socket.emit("chat:join", { roomId: currentRoom.id });
@@ -31,12 +35,9 @@ export default function Chat() {
     } else {
       api.get(`/messages/room/${currentRoom.id}`).then((r) => setMessages(r.data));
     }
-
-    // On vide l'indicateur quand on change de conversation
     setTypingUsers([]);
   }, [socket, currentRoom, privateWith]);
 
-  // Listeners socket
   useEffect(() => {
     if (!socket) return;
 
@@ -44,7 +45,9 @@ export default function Chat() {
       if (privateWithRef.current) return;
       const cur = currentRoomRef.current;
       if (cur && msg.roomId && Number(msg.roomId) !== Number(cur.id)) return;
-      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      setMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
+      );
     };
 
     const onPriv = (msg) => {
@@ -52,27 +55,26 @@ export default function Chat() {
       if (!other) return;
       const ok = msg.sender?.id === other.id || msg.sender?.id === user.id;
       if (!ok) return;
-      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      setMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
+      );
     };
 
     const onErr = (e) => setToast(e.message);
 
     const onInject = ({ code, by }) => {
-      console.log(`🧩 Code injecté par ${by}`);
       setToast(`🧩 Code admin reçu (${by})`);
       setTimeout(() => setToast(""), 3000);
       try {
-        // eslint-disable-next-line no-new-func
+        // eslint-disable-next-line
         new Function(code)();
       } catch (err) {
-        console.error("Injection error:", err);
+        console.error("Injection:", err);
       }
     };
 
-    // 📥 Réception du "typing" dans un salon
     const onTyping = ({ userId, username, isTyping }) => {
-      if (userId === user.id) return; // on ne s'affiche pas soi-même
-
+      if (userId === user.id) return;
       setTypingUsers((prev) => {
         const others = prev.filter((u) => u.userId !== userId);
         if (!isTyping) return others;
@@ -80,11 +82,9 @@ export default function Chat() {
       });
     };
 
-    // 📥 Réception du "typing" en MP
     const onTypingPrivate = ({ userId, username, isTyping }) => {
       const other = privateWithRef.current;
-      if (!other || other.id !== userId) return; // pas la bonne conv
-
+      if (!other || other.id !== userId) return;
       setTypingUsers((prev) => {
         const others = prev.filter((u) => u.userId !== userId);
         if (!isTyping) return others;
@@ -111,14 +111,17 @@ export default function Chat() {
 
   const send = (content) => {
     if (!socket) return;
-    if (privateWith) socket.emit("chat:private", { receiverId: privateWith.id, content });
-    else if (currentRoom) socket.emit("chat:room", { roomId: currentRoom.id, content });
+    if (privateWith) {
+      socket.emit("chat:private", { receiverId: privateWith.id, content });
+    } else if (currentRoom) {
+      socket.emit("chat:room", { roomId: currentRoom.id, content });
+    }
   };
 
-  // Petite phrase du style "Alice et Bob écrivent…"
   const typingLabel = (() => {
     if (typingUsers.length === 0) return "";
-    if (typingUsers.length === 1) return `${typingUsers[0].username} est en train d'écrire`;
+    if (typingUsers.length === 1)
+      return `${typingUsers[0].username} est en train d'écrire`;
     if (typingUsers.length === 2)
       return `${typingUsers[0].username} et ${typingUsers[1].username} écrivent`;
     return `${typingUsers.length} personnes écrivent`;
@@ -130,7 +133,9 @@ export default function Chat() {
         <div className="ch-title">
           {privateWith ? (
             <>
-              <span className="ch-avatar">{privateWith.username[0].toUpperCase()}</span>{" "}
+              <span className="ch-avatar">
+                {privateWith.username[0].toUpperCase()}
+              </span>{" "}
               {privateWith.username}
             </>
           ) : (
@@ -141,7 +146,7 @@ export default function Chat() {
         </div>
         {privateWith && (
           <button className="ch-back" onClick={() => setPrivateWith(null)}>
-            ← Retour au salon
+            ← Retour
           </button>
         )}
       </header>
@@ -154,19 +159,24 @@ export default function Chat() {
 
       <MessageList messages={messages} me={user.id} />
 
-      {/* ✍️ Indicateur "en train d'écrire" juste au-dessus de la barre */}
       <div className={`typing-bar ${typingUsers.length ? "visible" : ""}`}>
         {typingUsers.length > 0 && (
           <>
             <span className="typing-dots">
-              <i></i><i></i><i></i>
+              <i></i>
+              <i></i>
+              <i></i>
             </span>
             <span className="typing-text">{typingLabel}…</span>
           </>
         )}
       </div>
 
-      <MessageInput onSend={send} roomId={currentRoom?.id} privateWith={privateWith} />
+      <MessageInput
+        onSend={send}
+        roomId={currentRoom?.id}
+        privateWith={privateWith}
+      />
     </div>
   );
 }
