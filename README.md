@@ -520,25 +520,6 @@ L'interface doit privilégier :
 
     ♿ Accessibilité
 
-🔔 Notifications
-
-La plateforme peut notifier l'utilisateur lors de :
-
-    💬 Nouveau message
-
-    ✉️ Nouveau MP
-
-    👥 Invitation à un groupe
-
-    🎮 Invitation à une partie
-
-    🃏 Début d'une partie
-
-    ♟️ Tour de jeu
-
-    📁 Nouveau document
-
-    ⚠️ Action administrative
 
 🔒 Sécurité
 
