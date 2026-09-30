@@ -779,8 +779,10 @@ io.on("connection", (socket) => {
 
   // ✍️ Indicateur "est en train d'écrire"
   // On envoie au salon (sauf à l'auteur du message)
+    // ✍️ Indicateur "est en train d'écrire" — SALON
   socket.on("chat:typing", ({ roomId, isTyping }) => {
     if (!roomId) return;
+    console.log(`✍️ ${socket.user.username} typing=${isTyping} dans r:${roomId}`);
     socket.to(`r:${roomId}`).emit("chat:typing", {
       userId: socket.user.id,
       username: socket.user.username,
@@ -788,9 +790,10 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ✍️ Même chose pour les MP
+  // ✍️ Indicateur "est en train d'écrire" — MP
   socket.on("chat:typing:private", ({ receiverId, isTyping }) => {
     if (!receiverId) return;
+    console.log(`✍️ ${socket.user.username} typing=${isTyping} → user ${receiverId}`);
     io.to(`u:${receiverId}`).emit("chat:typing:private", {
       userId: socket.user.id,
       username: socket.user.username,
