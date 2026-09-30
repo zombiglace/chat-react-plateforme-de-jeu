@@ -222,13 +222,11 @@ export default function Sidebar() {
   <Link to="/accessibilite">Accessibilité</Link>
   <span>·</span>
   {/* 🎵 Easter egg */}
-  <a
+    <a
     href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
     target="_blank"
     rel="noreferrer"
-    className="sb-easter-egg"
-    title="?"
-    aria-label="?"
+    className="sb-legal-rickroll"
   >
     Lael
   </a>
