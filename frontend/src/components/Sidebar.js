@@ -57,7 +57,7 @@ export default function Sidebar() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sb-header">
-          <div className="sb-logo">💬 Chat React</div>
+          <div className="sb-logo">💬 Chat NSI</div>
           <div className="sb-user">
             <span className="sb-avatar">{user.username[0].toUpperCase()}</span>
             <div className="sb-user-info">
