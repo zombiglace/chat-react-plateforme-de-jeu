@@ -293,7 +293,284 @@ setTimeout(() => { document.documentElement.style.filter = ""; }, 5000);`,
     }
   }, 1000);
 })();`,
+  },{
+    id: "ghosts",
+    name: "👻 Invasion de fantômes",
+    desc: "Des fantômes traversent l'écran",
+    code: `(() => {
+  const emojis = ["👻", "👻", "💀", "🎃"];
+  const ghosts = [];
+
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement("div");
+    el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+
+    el.style.cssText = \`
+      position: fixed;
+      left: -80px;
+      top: \${Math.random() * 90}vh;
+      font-size: \${30 + Math.random() * 35}px;
+      z-index: 999999;
+      pointer-events: none;
+      transition: transform \${4 + Math.random() * 4}s linear;
+    \`;
+
+    document.body.appendChild(el);
+    ghosts.push(el);
+
+    requestAnimationFrame(() => {
+      el.style.transform =
+        \`translateX(\${innerWidth + 200}px)\`;
+    });
+
+    setTimeout(() => el.remove(), 9000);
+  }
+})();`,
   },
+
+  {
+    id: "terminal",
+    name: "🖥️ Faux terminal",
+    desc: "Affiche un terminal animé façon hacker",
+    code: `(() => {
+  document.getElementById("__terminal")?.remove();
+
+  const terminal = document.createElement("div");
+  terminal.id = "__terminal";
+
+  terminal.style.cssText = \`
+    position: fixed;
+    inset: 0;
+    background: #050505;
+    color: #00ff66;
+    z-index: 999999;
+    padding: 30px;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 16px;
+    overflow: hidden;
+  \`;
+
+  terminal.innerHTML = \`
+    <div style="color:#fff;margin-bottom:20px;">
+      root@admin:~$ security-console
+    </div>
+    <div id="__terminalText"></div>
+    <span style="color:#00ff66;">█</span>
+  \`;
+
+  document.body.appendChild(terminal);
+
+  const lines = [
+    "[INFO] Initialisation du système...",
+    "[OK] Connexion sécurisée",
+    "[INFO] Vérification des permissions...",
+    "[OK] Permissions administrateur détectées",
+    "[INFO] Analyse de la session...",
+    "[OK] Session valide",
+    "[INFO] Chargement des modules...",
+    "[OK] Tous les modules chargés",
+    "",
+    "root@admin:~$ _"
+  ];
+
+  const text = terminal.querySelector("#__terminalText");
+  let i = 0;
+
+  const interval = setInterval(() => {
+    if (i >= lines.length) {
+      clearInterval(interval);
+      return;
+    }
+
+    const line = document.createElement("div");
+    line.textContent = lines[i++];
+    text.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+  }, 500);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    terminal.remove();
+  }, 9000);
+})();`,
+  },
+
+  {
+    id: "aquarium",
+    name: "🐠 Aquarium",
+    desc: "Transforme l'écran en aquarium animé",
+    code: `(() => {
+  document.getElementById("__aquarium")?.remove();
+
+  const aquarium = document.createElement("div");
+  aquarium.id = "__aquarium";
+
+  aquarium.style.cssText = \`
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(#006994, #001f3f);
+    z-index: 999999;
+    overflow: hidden;
+    pointer-events: none;
+  \`;
+
+  aquarium.innerHTML = \`
+    <div style="
+      position:absolute;
+      bottom:0;
+      width:100%;
+      height:18%;
+      background:linear-gradient(#c2b280,#806b3f);
+    "></div>
+  \`;
+
+  const fish = ["🐠","🐟","🐡","🦈","🐬","🐳"];
+
+  for (let i = 0; i < 18; i++) {
+    const el = document.createElement("div");
+    el.textContent = fish[Math.floor(Math.random() * fish.length)];
+
+    const size = 25 + Math.random() * 35;
+    const duration = 6 + Math.random() * 8;
+
+    el.style.cssText = \`
+      position:absolute;
+      left:-100px;
+      top:\${10 + Math.random() * 70}%;
+      font-size:\${size}px;
+      transition:transform \${duration}s linear;
+    \`;
+
+    aquarium.appendChild(el);
+
+    requestAnimationFrame(() => {
+      el.style.transform =
+        \`translateX(\${innerWidth + 300}px)\`;
+    });
+
+    setInterval(() => {
+      if (document.body.contains(el)) {
+        el.style.top = \`\${10 + Math.random() * 70}%\`;
+      }
+    }, duration * 1000);
+  }
+
+  for (let i = 0; i < 30; i++) {
+    const bubble = document.createElement("div");
+
+    bubble.textContent = "○";
+    bubble.style.cssText = \`
+      position:absolute;
+      bottom:-30px;
+      left:\${Math.random() * 100}%;
+      color:rgba(255,255,255,.6);
+      font-size:\${10 + Math.random() * 20}px;
+      animation:__bubble \${3 + Math.random() * 5}s linear infinite;
+    \`;
+
+    aquarium.appendChild(bubble);
+  }
+
+  const style = document.createElement("style");
+  style.id = "__aquariumStyle";
+  style.textContent = \`
+    @keyframes __bubble {
+      from { transform:translateY(0); opacity:.7; }
+      to { transform:translateY(-110vh); opacity:0; }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(aquarium);
+
+  setTimeout(() => {
+    aquarium.remove();
+    style.remove();
+  }, 12000);
+})();`,
+  },
+
+  {
+    id: "coinflip",
+    name: "🪙 Pile ou face",
+    desc: "Lance une pièce avec une animation",
+    code: `(() => {
+  document.getElementById("__coinflip")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__coinflip";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.85);
+    z-index:999999;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    color:white;
+    font-family:Arial,sans-serif;
+  \`;
+
+  overlay.innerHTML = \`
+    <div id="__coin" style="
+      width:150px;
+      height:150px;
+      border-radius:50%;
+      background:linear-gradient(135deg,#ffd700,#b8860b);
+      border:8px solid #fff3a3;
+      display:grid;
+      place-items:center;
+      font-size:70px;
+      box-shadow:0 0 40px rgba(255,215,0,.6);
+      transform-style:preserve-3d;
+    ">🪙</div>
+
+    <h2 id="__coinResult" style="
+      margin-top:30px;
+      font-size:30px;
+    ">Lancement...</h2>
+
+    <button id="__coinClose" style="
+      display:none;
+      margin-top:20px;
+      padding:12px 25px;
+      border:0;
+      border-radius:10px;
+      background:#2563eb;
+      color:white;
+      font-weight:bold;
+      cursor:pointer;
+    ">Fermer</button>
+  \`;
+
+  document.body.appendChild(overlay);
+
+  const coin = overlay.querySelector("#__coin");
+  const result = overlay.querySelector("#__coinResult");
+  const close = overlay.querySelector("#__coinClose");
+
+  const isHeads = Math.random() < 0.5;
+
+  coin.style.transition =
+    "transform 2s cubic-bezier(.2,.8,.2,1)";
+
+  requestAnimationFrame(() => {
+    coin.style.transform =
+      \`rotateY(\${isHeads ? 1800 : 1980}deg) rotateX(10deg)\`;
+  });
+
+  setTimeout(() => {
+    result.textContent = isHeads ? "🪙 PILE !" : "🪙 FACE !";
+    close.style.display = "block";
+  }, 2200);
+
+  close.onclick = () => overlay.remove();
+})();`,
+  },
+
 
 ];
 
