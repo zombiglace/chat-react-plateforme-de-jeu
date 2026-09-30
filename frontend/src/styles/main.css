@@ -3184,19 +3184,15 @@ a:hover {
 /* ═══════════════════════════════════════════════════════════════
    EASTER EGG — Lien Rick Roll discret
    ═══════════════════════════════════════════════════════════════ */
-.sb-easter-egg {
-  opacity: 0.15;
-  color: #64748b !important;
-  font-size: 0.7rem;
-  text-decoration: none !important;
-  transition: opacity 0.2s, color 0.2s, transform 0.2s;
-  display: inline-block;
+.sb-legal-rickroll {
+  color: #64748b;
+  font-size: 0.68rem;
+  text-decoration: none;
+  transition: color 0.15s;
   cursor: pointer;
-  line-height: 1;
 }
 
-.sb-easter-egg:hover {
-  opacity: 1;
-  color: #f59e0b !important;
-  transform: rotate(360deg) scale(1.4);
+.sb-legal-rickroll:hover {
+  color: #60a5fa;
+  text-decoration: underline;
 }
