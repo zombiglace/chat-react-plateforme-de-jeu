@@ -121,6 +121,13 @@ export default function Login() {
           </p>
         </form>
       </div>
+            <div className="auth-legal-links">
+  <Link to="/mentions-legales">Mentions légales</Link>
+  <span>·</span>
+  <Link to="/confidentialite">Confidentialité</Link>
+  <span>·</span>
+  <Link to="/accessibilite">Accessibilité</Link>
+</div>
     </div>
   );
 }
