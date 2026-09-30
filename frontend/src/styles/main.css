@@ -2506,3 +2506,124 @@ a {
 .typing-text {
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGES LÉGALES
+   ═══════════════════════════════════════════════════════════════ */
+.legal-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.legal-back {
+  display: inline-block;
+  color: #60a5fa;
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
+  text-decoration: none;
+}
+.legal-back:hover { text-decoration: underline; }
+
+.legal-page h1 {
+  font-size: 1.8rem;
+  color: #f1f5f9;
+  margin-bottom: 0.5rem;
+}
+
+.legal-updated {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2a3446;
+}
+
+.legal-intro {
+  background: #131c2e;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.legal-page section {
+  margin-bottom: 1.75rem;
+}
+
+.legal-page h2 {
+  font-size: 1.1rem;
+  color: #60a5fa;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+}
+
+.legal-page p {
+  margin-bottom: 0.75rem;
+}
+
+.legal-page ul {
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-page ul li {
+  margin-bottom: 0.4rem;
+}
+
+.legal-page strong {
+  color: #f1f5f9;
+}
+
+.legal-page a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+.legal-page a:hover { text-decoration: underline; }
+
+/* Pied de page légal de la sidebar */
+.sb-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+.sb-legal-links a {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.7rem;
+}
+.sb-legal-links a:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+/* Liens légaux sur les pages login/register */
+.auth-legal-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #2a3446;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+.auth-legal-links a {
+  color: #64748b;
+  text-decoration: none;
+}
+.auth-legal-links a:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
