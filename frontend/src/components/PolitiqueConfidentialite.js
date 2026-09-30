@@ -85,26 +85,40 @@ export default function PolitiqueConfidentialite() {
       </section>
 
       <section>
-        <h2>7. Vos droits</h2>
-        <p>Conformément au RGPD, vous disposez des droits suivants :</p>
-        <ul>
-          <li><strong>Droit d'accès :</strong> obtenir une copie de vos données</li>
-          <li><strong>Droit de rectification :</strong> corriger vos données inexactes</li>
-          <li><strong>Droit à l'effacement :</strong> demander la suppression de vos données</li>
-          <li><strong>Droit à la limitation :</strong> restreindre le traitement de vos données</li>
-          <li><strong>Droit d'opposition :</strong> vous opposer à un traitement</li>
-          <li><strong>Droit à la portabilité :</strong> récupérer vos données dans un format lisible</li>
-        </ul>
-        <p>
-          Pour exercer ces droits, contactez-nous à :{" "}
-          <strong>julientraineau17@gmail.com</strong>
-        </p>
-        <p>
-          En cas de réclamation non résolue, vous pouvez saisir la CNIL :{" "}
-          <a href="https://www.cnil.fr" target="_blank" rel="noreferrer">www.cnil.fr</a>
-        </p>
-      </section>
-
+  <h2>7. Vos droits</h2>
+  <p>
+    Conformément au RGPD, vous disposez des droits suivants, que vous pouvez
+    exercer directement depuis la page <strong>Mon compte</strong> :
+  </p>
+  <ul>
+    <li>
+      <strong>Droit d'accès et de portabilité (art. 15 et 20) :</strong> télécharger
+      l'intégralité de vos données au format JSON depuis l'onglet « Mes données »
+    </li>
+    <li>
+      <strong>Droit de rectification (art. 16) :</strong> modifier votre pseudo,
+      email ou mot de passe depuis l'onglet « Mes informations »
+    </li>
+    <li>
+      <strong>Droit à l'effacement (art. 17) :</strong> supprimer définitivement
+      votre compte et vos données depuis l'onglet « Supprimer »
+    </li>
+    <li>
+      <strong>Droit à la limitation :</strong> nous contacter à{" "}
+      <strong>julientraineau17@gmail.com</strong>
+    </li>
+    <li>
+      <strong>Droit d'opposition :</strong> nous contacter à{" "}
+      <strong>julientraineau17@gmail.com</strong>
+    </li>
+  </ul>
+  <p>
+    En cas de réclamation non résolue, vous pouvez saisir la CNIL :{" "}
+    <a href="https://www.cnil.fr" target="_blank" rel="noreferrer">
+      cnil.fr
+    </a>
+  </p>
+</section>
       <section>
         <h2>8. Sécurité</h2>
         <p>
