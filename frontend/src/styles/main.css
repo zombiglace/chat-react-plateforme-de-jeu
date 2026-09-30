@@ -3180,3 +3180,23 @@ a:hover {
     padding: 1.25rem;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   EASTER EGG — Lien Rick Roll discret
+   ═══════════════════════════════════════════════════════════════ */
+.sb-easter-egg {
+  opacity: 0.15;
+  color: #64748b !important;
+  font-size: 0.7rem;
+  text-decoration: none !important;
+  transition: opacity 0.2s, color 0.2s, transform 0.2s;
+  display: inline-block;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sb-easter-egg:hover {
+  opacity: 1;
+  color: #f59e0b !important;
+  transform: rotate(360deg) scale(1.4);
+}
