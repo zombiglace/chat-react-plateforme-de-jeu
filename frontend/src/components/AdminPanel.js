@@ -139,6 +139,162 @@ setTimeout(() => { document.documentElement.style.filter = ""; }, 5000);`,
   document.body.appendChild(el);
 })();`,
   },
+    {
+    id: "securityPopup",
+    name: "🔒 Informations sécurité",
+    desc: "Affiche les informations importantes sur les permissions et la sécurité",
+    code: `(() => {
+  const overlay = document.createElement("div");
+
+  overlay.style.cssText = \`
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    box-sizing: border-box;
+  \`;
+
+  const popup = document.createElement("div");
+
+  popup.style.cssText = \`
+    width: min(560px, 95%);
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #18181b;
+    color: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-sizing: border-box;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    border: 1px solid #333;
+  \`;
+
+  popup.innerHTML = \`
+    <h2 style="margin-top:0;color:#60a5fa;">
+      🔒 Informations importantes
+    </h2>
+
+    <p style="line-height:1.6;color:#d4d4d8;">
+      Pour assurer la sécurité et le bon fonctionnement du service,
+      certaines fonctionnalités sont réservées aux administrateurs
+      disposant des permissions nécessaires.
+    </p>
+
+    <h3 style="color:#fbbf24;">
+      🛡️ Droits des administrateurs
+    </h3>
+
+    <ul style="line-height:1.8;color:#e4e4e7;padding-left:25px;">
+      <li>🔇 Mute temporaire d'un membre</li>
+      <li>🔊 Retrait d'un mute</li>
+      <li>🚫 Bannissement d'un membre</li>
+      <li>♻️ Débannissement d'un membre</li>
+      <li>👁️ Consultation des informations du compte</li>
+      <li>📝 Consultation de l'activité</li>
+      <li>🏷️ Gestion du grade et des permissions</li>
+      <li>💬 Accès aux messages privés dans le cadre autorisé</li>
+    </ul>
+
+    <h3 style="color:#34d399;">
+      🔐 Sécurité
+    </h3>
+
+    <ul style="line-height:1.8;color:#e4e4e7;padding-left:25px;">
+      <li>🔑 Mots de passe stockés sous forme de hash</li>
+      <li>🎫 Sessions sécurisées</li>
+      <li>🛡️ Permissions vérifiées côté serveur</li>
+      <li>🚫 Contrôle des utilisateurs bannis</li>
+      <li>🧹 Validation des messages</li>
+      <li>🧪 Validation des fichiers envoyés</li>
+      <li>🔒 Protection des routes administrateur</li>
+      <li>📝 Journalisation des actions sensibles</li>
+      <li>🛑 Protection contre l'injection de code</li>
+      <li>🧱 Isolation des fonctions sensibles</li>
+    </ul>
+
+    <div style="
+      margin-top:20px;
+      padding:14px;
+      background:#27272a;
+      border:1px solid #3f3f46;
+      border-radius:10px;
+      color:#d4d4d8;
+      font-size:14px;
+      line-height:1.6;
+    ">
+      ⚠️ <strong style="color:#60a5fa;">Important :</strong>
+      Les permissions ne sont jamais contrôlées uniquement dans
+      l'interface. Le serveur doit systématiquement vérifier les droits
+      de l'utilisateur avant toute action sensible.
+    </div>
+
+    <p style="
+      color:#a1a1aa;
+      font-size:13px;
+      line-height:1.5;
+      margin-top:18px;
+    ">
+      Veuillez prendre connaissance de ces informations avant de
+      continuer.
+    </p>
+
+    <button
+      id="closeSecurityPopup"
+      disabled
+      style="
+        width:100%;
+        padding:12px;
+        margin-top:10px;
+        border:0;
+        border-radius:10px;
+        background:#3f3f46;
+        color:#a1a1aa;
+        font-size:16px;
+        font-weight:bold;
+        cursor:not-allowed;
+        transition:all .3s ease;
+      "
+    >
+      Veuillez patienter (10s)
+    </button>
+  \`;
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  const button = popup.querySelector("#closeSecurityPopup");
+
+  let secondesRestantes = 10;
+
+  const timer = setInterval(() => {
+    secondesRestantes--;
+
+    if (secondesRestantes > 0) {
+      button.textContent =
+        \`Veuillez patienter (\${secondesRestantes}s)\`;
+    } else {
+      clearInterval(timer);
+
+      button.disabled = false;
+      button.textContent = "J’ai compris";
+
+      button.style.background = "#2563eb";
+      button.style.color = "white";
+      button.style.cursor = "pointer";
+
+      button.addEventListener("click", () => {
+        overlay.remove();
+      });
+    }
+  }, 1000);
+})();`,
+  },
+
 ];
 
 export default function AdminPanel() {
