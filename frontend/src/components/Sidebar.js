@@ -215,12 +215,24 @@ export default function Sidebar() {
   </button>
 
   <div className="sb-legal-links">
-    <Link to="/mentions-legales">Mentions</Link>
-    <span>·</span>
-    <Link to="/confidentialite">Confidentialité</Link>
-    <span>·</span>
-    <Link to="/accessibilite">Accessibilité</Link>
-  </div>
+  <Link to="/mentions-legales">Mentions</Link>
+  <span>·</span>
+  <Link to="/confidentialite">Confidentialité</Link>
+  <span>·</span>
+  <Link to="/accessibilite">Accessibilité</Link>
+  <span>·</span>
+  {/* 🎵 Easter egg */}
+  <a
+    href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    target="_blank"
+    rel="noreferrer"
+    className="sb-easter-egg"
+    title="?"
+    aria-label="?"
+  >
+    Lael
+  </a>
+</div>
 
   <div className="sb-copyright">© 2026 Julien Traineau</div>
 </div>
