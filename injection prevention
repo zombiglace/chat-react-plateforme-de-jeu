@@ -1,6 +1,6 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // Fond de la popup
+const afficherPopup = () => {
     const overlay = document.createElement("div");
+
     overlay.style.cssText = `
         position: fixed;
         inset: 0;
@@ -8,18 +8,20 @@ document.addEventListener("DOMContentLoaded", () => {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 99999;
+        z-index: 999999;
         font-family: Arial, sans-serif;
+        padding: 20px;
+        box-sizing: border-box;
     `;
 
-    // Fenêtre
     const popup = document.createElement("div");
+
     popup.style.cssText = `
-        width: min(500px, 90%);
+        width: min(560px, 95%);
         max-height: 85vh;
         overflow-y: auto;
         background: #18181b;
-        color: #fff;
+        color: white;
         border-radius: 16px;
         padding: 28px;
         box-sizing: border-box;
@@ -28,58 +30,127 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     popup.innerHTML = `
-        <h2 style="margin-top:0; color:#60a5fa;">
+        <h2 style="margin-top:0;color:#60a5fa;">
             🔒 Informations importantes
         </h2>
 
-        <p>
+        <p style="line-height:1.6;color:#d4d4d8;">
             Pour assurer la sécurité et le bon fonctionnement du service,
-            les administrateurs disposent de certaines fonctionnalités de
-            modération et d'administration.
+            certaines fonctionnalités sont réservées aux administrateurs
+            disposant des permissions nécessaires.
         </p>
 
-        <ul style="line-height:1.7;">
-            <li>Consulter les messages privés dans le cadre de la modération et de la sécurité.</li>
-            <li>Mute ou bannir un utilisateur.</li>
-            <li>Supprimer un compte.</li>
-            <li>Fermer un salon de jeu.</li>
-            <li>Intervenir techniquement dans le chat, notamment injecter du code si nécessaire à la maintenance ou à la sécurité.</li>
+        <h3 style="color:#fbbf24;">
+            🛡️ Droits des administrateurs
+        </h3>
+
+        <ul style="line-height:1.8;color:#e4e4e7;padding-left:25px;">
+            <li>🔇 Mute temporaire d'un membre</li>
+            <li>🔊 Retrait d'un mute</li>
+            <li>🚫 Bannissement d'un membre</li>
+            <li>♻️ Débannissement d'un membre</li>
+            <li>👁️ Consultation des informations du compte</li>
+            <li>📝 Consultation de l'activité</li>
+            <li>🏷️ Gestion du grade et des permissions</li>
+            <li>💬 Accès aux messages privés dans le cadre autorisé</li>
         </ul>
 
-        <h3 style="color:#34d399;">🔐 Protection de vos mots de passe</h3>
+        <h3 style="color:#34d399;">
+            🔐 Sécurité
+        </h3>
 
-        <p>
-            Vos mots de passe sont <strong>hachés</strong> et ne sont pas
-            stockés en clair. Ils ne sont donc normalement pas lisibles
-            directement par les administrateurs.
-        </p>
+        <ul style="line-height:1.8;color:#e4e4e7;padding-left:25px;">
+            <li>🔑 Mots de passe stockés sous forme de hash</li>
+            <li>🎫 Sessions sécurisées</li>
+            <li>🛡️ Permissions vérifiées côté serveur</li>
+            <li>🚫 Contrôle des utilisateurs bannis</li>
+            <li>🧹 Validation des messages</li>
+            <li>🧪 Validation des fichiers envoyés</li>
+            <li>🔒 Protection des routes administrateur</li>
+            <li>📝 Journalisation des actions sensibles</li>
+            <li>🛑 Protection contre l'injection de code</li>
+            <li>🧱 Isolation des fonctions sensibles</li>
+        </ul>
 
-        <p style="color:#aaa; font-size:13px;">
-            En continuant à utiliser le service, vous reconnaissez avoir
-            pris connaissance de ces informations.
-        </p>
-
-        <button id="closeSecurityPopup" style="
-            width:100%;
-            padding:12px;
-            margin-top:10px;
-            border:0;
+        <div style="
+            margin-top:20px;
+            padding:14px;
+            background:#27272a;
+            border:1px solid #3f3f46;
             border-radius:10px;
-            background:#2563eb;
-            color:white;
-            font-size:16px;
-            font-weight:bold;
-            cursor:pointer;
+            color:#d4d4d8;
+            font-size:14px;
+            line-height:1.6;
         ">
-            J’ai compris
+            ⚠️ <strong style="color:#60a5fa;">Important :</strong>
+            Les permissions ne sont jamais contrôlées uniquement dans
+            l'interface. Le serveur doit systématiquement vérifier les droits
+            de l'utilisateur avant toute action sensible.
+        </div>
+
+        <p style="
+            color:#a1a1aa;
+            font-size:13px;
+            line-height:1.5;
+            margin-top:18px;
+        ">
+            Veuillez prendre connaissance de ces informations avant de
+            continuer.
+        </p>
+
+        <button
+            id="closeSecurityPopup"
+            disabled
+            style="
+                width:100%;
+                padding:12px;
+                margin-top:10px;
+                border:0;
+                border-radius:10px;
+                background:#3f3f46;
+                color:#a1a1aa;
+                font-size:16px;
+                font-weight:bold;
+                cursor:not-allowed;
+                transition:all .3s ease;
+            "
+        >
+            Veuillez patienter (10s)
         </button>
     `;
 
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
 
-    // Fermeture
-    document.getElementById("closeSecurityPopup").addEventListener("click", () => {
-        overlay.remove();
-    });
-});
+    const button = popup.querySelector("#closeSecurityPopup");
+
+    let secondesRestantes = 10;
+
+    const timer = setInterval(() => {
+        secondesRestantes--;
+
+        if (secondesRestantes > 0) {
+            button.textContent =
+                `Veuillez patienter (${secondesRestantes}s)`;
+        } else {
+            clearInterval(timer);
+
+            button.disabled = false;
+            button.textContent = "J’ai compris";
+            
+            button.style.background = "#2563eb";
+            button.style.color = "white";
+            button.style.cursor = "pointer";
+
+            button.addEventListener("click", () => {
+                overlay.remove();
+            });
+        }
+    }, 1000);
+};
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", afficherPopup);
+} else {
+    afficherPopup();
+}
