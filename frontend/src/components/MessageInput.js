@@ -24,14 +24,24 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
   }, [text]);
 
   const signalTyping = (isTyping) => {
-    if (!socket) return;
+    if (!socket) {
+      console.log("❌ signalTyping: pas de socket");
+      return;
+    }
     if (privateWith) {
+      console.log("📤 emit chat:typing:private", {
+        receiverId: privateWith.id,
+        isTyping,
+      });
       socket.emit("chat:typing:private", {
         receiverId: privateWith.id,
         isTyping,
       });
     } else if (roomId) {
+      console.log("📤 emit chat:typing", { roomId, isTyping });
       socket.emit("chat:typing", { roomId, isTyping });
+    } else {
+      console.log("❌ signalTyping: pas de roomId ni privateWith");
     }
     isTypingRef.current = isTyping;
   };
