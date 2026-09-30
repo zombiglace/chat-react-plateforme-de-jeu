@@ -35,25 +35,6 @@ const PRESETS = [
     code: `alert("📢 Message de l'admin : Bonjour !");`,
   },
   {
-    id: "shakepage",
-    name: "🌪️ Secouer la page",
-    desc: "Animation qui fait trembler l'écran",
-    code: `(() => {
-  document.body.style.transition = "transform 0.05s";
-  let n = 0;
-  const iv = setInterval(() => {
-    const x = (Math.random() - 0.5) * 20;
-    const y = (Math.random() - 0.5) * 20;
-    document.body.style.transform = \`translate(\${x}px, \${y}px)\`;
-    if (++n > 40) {
-      clearInterval(iv);
-      document.body.style.transform = "";
-      document.body.style.transition = "";
-    }
-  }, 50);
-})();`,
-  },
-  {
     id: "confetti",
     name: "🎉 Confettis",
     desc: "Pluie de confettis emoji",
@@ -71,13 +52,6 @@ const PRESETS = [
     setTimeout(() => el.remove(), 3200);
   }
 })();`,
-  },
-  {
-    id: "invert",
-    name: "🔄 Inverser les couleurs",
-    desc: "Filtre CSS qui inverse tout",
-    code: `document.documentElement.style.filter = "invert(1) hue-rotate(180deg)";
-setTimeout(() => { document.documentElement.style.filter = ""; }, 5000);`,
   },
   {
     id: "matrix",
@@ -569,7 +543,508 @@ setTimeout(() => { document.documentElement.style.filter = ""; }, 5000);`,
 
   close.onclick = () => overlay.remove();
 })();`,
+  },  {
+    id: "blackhole",
+    name: "🕳️ Trou noir",
+    desc: "Effet visuel donnant l'impression que l'écran est aspiré",
+    code: `(() => {
+  document.getElementById("__blackhole")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__blackhole";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    pointer-events:none;
+    overflow:hidden;
+    background:radial-gradient(
+      circle at center,
+      #000 0 7%,
+      #241044 9%,
+      #000 22%,
+      transparent 55%
+    );
+    animation:__blackholePulse 4s ease-in-out forwards;
+  \`;
+
+  const style = document.createElement("style");
+  style.id = "__blackholeStyle";
+  style.textContent = \`
+    @keyframes __blackholePulse {
+      0% {
+        transform:scale(0);
+        opacity:0;
+      }
+      25% {
+        transform:scale(.8);
+        opacity:1;
+      }
+      70% {
+        transform:scale(1.15);
+        opacity:1;
+      }
+      100% {
+        transform:scale(1.8);
+        opacity:0;
+      }
+    }
+
+    @keyframes __blackholeSpin {
+      from { transform:rotate(0deg); }
+      to { transform:rotate(360deg); }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(overlay);
+
+  for (let i = 0; i < 80; i++) {
+    const star = document.createElement("div");
+
+    star.textContent = Math.random() > .7 ? "✦" : "•";
+
+    star.style.cssText = \`
+      position:absolute;
+      left:\${Math.random()*100}%;
+      top:\${Math.random()*100}%;
+      color:#fff;
+      font-size:\${5+Math.random()*12}px;
+      animation:__blackholeSpin \${1+Math.random()*3}s linear infinite;
+    \`;
+
+    overlay.appendChild(star);
+  }
+
+  setTimeout(() => {
+    overlay.remove();
+    style.remove();
+  }, 4200);
+})();`,
   },
+
+  {
+    id: "fireborder",
+    name: "🔥 Bordures en feu",
+    desc: "Des flammes animées entourent l'écran",
+    code: `(() => {
+  document.getElementById("__fireborder")?.remove();
+
+  const el = document.createElement("div");
+  el.id = "__fireborder";
+
+  el.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    pointer-events:none;
+    box-shadow:
+      inset 0 0 60px #ff0000,
+      inset 0 0 120px #ff6600,
+      inset 0 0 180px rgba(255,180,0,.7);
+    animation:__firePulse .18s infinite alternate;
+  \`;
+
+  const style = document.createElement("style");
+  style.id = "__fireStyle";
+
+  style.textContent = \`
+    @keyframes __firePulse {
+      from {
+        filter:hue-rotate(-10deg);
+        opacity:.8;
+      }
+      to {
+        filter:hue-rotate(20deg);
+        opacity:1;
+      }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(el);
+
+  const emojis = ["🔥","🔥","🔥","💥"];
+
+  for (let i = 0; i < 35; i++) {
+    const flame = document.createElement("div");
+
+    flame.textContent =
+      emojis[Math.floor(Math.random()*emojis.length)];
+
+    flame.style.cssText = \`
+      position:fixed;
+      left:\${Math.random()*100}vw;
+      top:\${Math.random() > .5 ? Math.random()*8 : 92+Math.random()*8}vh;
+      font-size:\${18+Math.random()*25}px;
+      z-index:1000000;
+      pointer-events:none;
+      animation:__flameFloat 1s ease-in-out infinite alternate;
+    \`;
+
+    document.body.appendChild(flame);
+
+    setTimeout(() => flame.remove(), 6000);
+  }
+
+  const flameStyle = document.createElement("style");
+  flameStyle.textContent = \`
+    @keyframes __flameFloat {
+      from { transform:translateY(4px) scale(.9); }
+      to { transform:translateY(-8px) scale(1.1); }
+    }
+  \`;
+
+  document.head.appendChild(flameStyle);
+
+  setTimeout(() => {
+    el.remove();
+    style.remove();
+    flameStyle.remove();
+  }, 6000);
+})();`,
+  },
+
+  {
+    id: "fakehack",
+    name: "💻 Fake Hack",
+    desc: "Simulation visuelle d'un terminal de piratage",
+    code: `(() => {
+  document.getElementById("__fakehack")?.remove();
+
+  const terminal = document.createElement("div");
+  terminal.id = "__fakehack";
+
+  terminal.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    background:#020403;
+    color:#00ff66;
+    padding:25px;
+    box-sizing:border-box;
+    font:15px monospace;
+    overflow:hidden;
+  \`;
+
+  terminal.innerHTML = \`
+    <div style="color:#fff;font-size:20px;margin-bottom:15px;">
+      TERMINAL // SIMULATION
+    </div>
+    <div id="__hackLines"></div>
+  \`;
+
+  document.body.appendChild(terminal);
+
+  const lines = [
+    "> Initialisation...",
+    "> Connexion au serveur...",
+    "> Analyse des ports...",
+    "> Recherche des services...",
+    "> Vérification des permissions...",
+    "> Simulation de connexion...",
+    "> Analyse terminée.",
+    "",
+    "> DEMO TERMINÉE",
+    "> Aucune connexion réelle effectuée."
+  ];
+
+  const container = terminal.querySelector("#__hackLines");
+  let i = 0;
+
+  const interval = setInterval(() => {
+    const line = document.createElement("div");
+    line.textContent = lines[i++];
+    container.appendChild(line);
+
+    if (i >= lines.length) {
+      clearInterval(interval);
+    }
+  }, 450);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    terminal.remove();
+  }, 6500);
+})();`,
+  },
+
+  {
+    id: "bruteforce",
+    name: "🔐 Brute Force Simulator",
+    desc: "Simulation graphique d'une recherche de caractères",
+    code: `(() => {
+  document.getElementById("__bruteforce")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__bruteforce";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    background:#030712;
+    color:#60a5fa;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    font-family:monospace;
+  \`;
+
+  overlay.innerHTML = \`
+    <h1 style="color:#fff;">🔐 BRUTE FORCE SIMULATION</h1>
+
+    <div id="__bfValue"
+      style="font-size:40px;letter-spacing:8px;margin:25px;">
+      XXXXXXXX
+    </div>
+
+    <div style="
+      width:min(600px,80%);
+      height:18px;
+      background:#1f2937;
+      border-radius:20px;
+      overflow:hidden;
+    ">
+      <div id="__bfBar" style="
+        width:0%;
+        height:100%;
+        background:#3b82f6;
+        transition:width .1s;
+      "></div>
+    </div>
+
+    <p id="__bfStatus">Simulation en cours...</p>
+  \`;
+
+  document.body.appendChild(overlay);
+
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const value = overlay.querySelector("#__bfValue");
+  const bar = overlay.querySelector("#__bfBar");
+  const status = overlay.querySelector("#__bfStatus");
+
+  let progress = 0;
+
+  const interval = setInterval(() => {
+    progress += Math.random() * 5;
+
+    if (progress >= 100) {
+      progress = 100;
+      clearInterval(interval);
+
+      value.textContent = "DEMO_OK";
+      status.textContent =
+        "Simulation terminée — aucune tentative réelle.";
+    } else {
+      let fake = "";
+
+      for (let i = 0; i < 8; i++) {
+        fake += chars[Math.floor(Math.random()*chars.length)];
+      }
+
+      value.textContent = fake;
+      status.textContent =
+        \`Analyse simulée : \${Math.floor(progress)}%\`;
+    }
+
+    bar.style.width = progress + "%";
+  }, 150);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    overlay.remove();
+  }, 5500);
+})();`,
+  },
+
+  {
+    id: "satellite",
+    name: "📡 Satellite Scan",
+    desc: "Radar satellite animé",
+    code: `(() => {
+  document.getElementById("__satellite")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__satellite";
+
+  overlay.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    background:#020617;
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+  \`;
+
+  overlay.innerHTML = \`
+    <div style="
+      width:min(70vw,500px);
+      aspect-ratio:1;
+      border:2px solid #22c55e;
+      border-radius:50%;
+      position:relative;
+      background:
+        radial-gradient(circle, transparent 0 20%,
+        rgba(34,197,94,.15) 21% 22%,
+        transparent 23% 40%,
+        rgba(34,197,94,.15) 41% 42%,
+        transparent 43%);
+      box-shadow:0 0 40px rgba(34,197,94,.3);
+    ">
+      <div style="
+        position:absolute;
+        width:50%;
+        height:2px;
+        background:#22c55e;
+        top:50%;
+        left:50%;
+        transform-origin:left center;
+        animation:__radarSpin 2s linear infinite;
+        box-shadow:0 0 12px #22c55e;
+      "></div>
+
+      <div style="
+        position:absolute;
+        width:12px;
+        height:12px;
+        border-radius:50%;
+        background:#ef4444;
+        left:65%;
+        top:30%;
+        box-shadow:0 0 15px red;
+      "></div>
+
+      <div style="
+        position:absolute;
+        width:10px;
+        height:10px;
+        border-radius:50%;
+        background:#facc15;
+        left:25%;
+        top:65%;
+        box-shadow:0 0 15px #facc15;
+      "></div>
+    </div>
+
+    <div style="
+      position:absolute;
+      bottom:30px;
+      color:#22c55e;
+      font:16px monospace;
+    ">
+      SATELLITE SCAN // SIGNAL ACTIVE
+    </div>
+  \`;
+
+  const style = document.createElement("style");
+  style.textContent = \`
+    @keyframes __radarSpin {
+      from { transform:rotate(0deg); }
+      to { transform:rotate(360deg); }
+    }
+  \`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(overlay);
+
+  setTimeout(() => {
+    overlay.remove();
+    style.remove();
+  }, 8000);
+})();`,
+  },
+
+  {
+    id: "catinvasion",
+    name: "🐱 Chat envahisseur",
+    desc: "Une armée de chats envahit l'écran",
+    code: `(() => {
+  document.getElementById("__catInvasion")?.remove();
+
+  const container = document.createElement("div");
+  container.id = "__catInvasion";
+
+  container.style.cssText = \`
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    pointer-events:none;
+    overflow:hidden;
+  \`;
+
+  document.body.appendChild(container);
+
+  const cats = ["🐱","😺","😸","😹","😻","🙀","😼"];
+
+  for (let i = 0; i < 35; i++) {
+    const cat = document.createElement("div");
+
+    cat.textContent =
+      cats[Math.floor(Math.random()*cats.length)];
+
+    cat.style.cssText = \`
+      position:absolute;
+      left:-100px;
+      top:\${Math.random()*90}vh;
+      font-size:\${25+Math.random()*45}px;
+      transition:transform \${3+Math.random()*4}s linear;
+    \`;
+
+    container.appendChild(cat);
+
+    requestAnimationFrame(() => {
+      cat.style.transform =
+        \`translateX(\${innerWidth+250}px) rotate(\${Math.random()*720-360}deg)\`;
+    });
+  }
+
+  setTimeout(() => container.remove(), 8000);
+})();`,
+  },
+
+  {
+    id: "giantcursor",
+    name: "🖱️ Curseur géant",
+    desc: "Affiche un énorme curseur qui suit la souris",
+    code: `(() => {
+  document.getElementById("__giantCursor")?.remove();
+
+  const cursor = document.createElement("div");
+  cursor.id = "__giantCursor";
+
+  cursor.textContent = "🖱️";
+
+  cursor.style.cssText = \`
+    position:fixed;
+    left:0;
+    top:0;
+    z-index:999999;
+    pointer-events:none;
+    font-size:70px;
+    transform:translate(-10px,-10px);
+    filter:drop-shadow(0 0 10px rgba(255,255,255,.6));
+  \`;
+
+  document.body.appendChild(cursor);
+
+  const move = (e) => {
+    cursor.style.left = e.clientX + "px";
+    cursor.style.top = e.clientY + "px";
+  };
+
+  document.addEventListener("mousemove", move);
+
+  setTimeout(() => {
+    document.removeEventListener("mousemove", move);
+    cursor.remove();
+  }, 10000);
+})();`,
+  },
+
 
 
 ];
