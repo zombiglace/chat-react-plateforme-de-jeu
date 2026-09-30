@@ -15,6 +15,7 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
 
+  // Auto-resize du textarea
   useEffect(() => {
     if (taRef.current) {
       taRef.current.style.height = "auto";
@@ -23,25 +24,16 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
     }
   }, [text]);
 
+  // Envoie l'info "en train d'écrire" au serveur
   const signalTyping = (isTyping) => {
-    if (!socket) {
-      console.log("❌ signalTyping: pas de socket");
-      return;
-    }
+    if (!socket) return;
     if (privateWith) {
-      console.log("📤 emit chat:typing:private", {
-        receiverId: privateWith.id,
-        isTyping,
-      });
       socket.emit("chat:typing:private", {
         receiverId: privateWith.id,
         isTyping,
       });
     } else if (roomId) {
-      console.log("📤 emit chat:typing", { roomId, isTyping });
       socket.emit("chat:typing", { roomId, isTyping });
-    } else {
-      console.log("❌ signalTyping: pas de roomId ni privateWith");
     }
     isTypingRef.current = isTyping;
   };
@@ -52,10 +44,12 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
 
     if (!socket) return;
 
+    // Première frappe : on prévient qu'on écrit
     if (!isTypingRef.current && value.length > 0) {
       signalTyping(true);
     }
 
+    // À chaque frappe, on repousse la fin du "typing" de 1.5s
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       if (isTypingRef.current) signalTyping(false);
@@ -69,6 +63,7 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
     onSend(text);
     setText("");
 
+    // Arrête immédiatement le "typing" quand on envoie
     clearTimeout(typingTimeoutRef.current);
     if (isTypingRef.current) signalTyping(false);
 
@@ -82,6 +77,7 @@ export default function MessageInput({ onSend, roomId, privateWith }) {
     }
   };
 
+  // Nettoie quand on change de conversation
   useEffect(() => {
     return () => {
       clearTimeout(typingTimeoutRef.current);
