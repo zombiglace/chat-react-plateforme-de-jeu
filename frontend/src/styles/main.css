@@ -2627,3 +2627,224 @@ a {
   color: #60a5fa;
   text-decoration: underline;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE MON COMPTE (RGPD)
+   ═══════════════════════════════════════════════════════════════ */
+.account-page {
+  padding: 1.5rem 2rem 3rem;
+  max-width: 850px;
+  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.account-header {
+  margin-bottom: 1.75rem;
+}
+.account-header h1 {
+  font-size: 1.75rem;
+  color: #f1f5f9;
+  margin-bottom: 0.35rem;
+}
+.account-sub {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* Onglets */
+.account-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0;
+  border-bottom: 1px solid #2a3446;
+  overflow-x: auto;
+}
+.account-tabs button {
+  padding: 0.75rem 1.1rem;
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.account-tabs button:hover {
+  color: #e2e8f0;
+}
+.account-tabs button.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+.account-tabs button.danger.active {
+  color: #f87171;
+  border-bottom-color: #f87171;
+}
+
+/* Panneau */
+.account-panel {
+  background: #131c2e;
+  border: 1px solid #2a3446;
+  border-radius: 12px;
+  padding: 1.75rem;
+}
+.account-panel.danger-zone {
+  border-color: #7f1d1d;
+}
+
+.account-panel h2 {
+  font-size: 1.15rem;
+  color: #f1f5f9;
+  margin-bottom: 0.75rem;
+}
+
+.account-hint {
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+/* Messages d'état */
+.account-msg {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+  animation: slideDown 0.2s;
+}
+.account-msg.ok {
+  background: #14532d;
+  color: #bbf7d0;
+  border: 1px solid #166534;
+}
+.account-msg.err {
+  background: #450a0a;
+  color: #fecaca;
+  border: 1px solid #7f1d1d;
+}
+
+/* Formulaire */
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.account-field > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+.account-field > span strong {
+  color: #f87171;
+}
+.account-field input {
+  padding: 0.75rem 1rem;
+  background: #0b1220;
+  border: 1px solid #2a3446;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.92rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.account-field input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.account-field small {
+  font-size: 0.75rem;
+  color: #64748b;
+  padding-left: 0.25rem;
+}
+
+.account-sep {
+  border: none;
+  border-top: 1px solid #2a3446;
+  margin: 0.5rem 0;
+}
+
+/* Bouton */
+.account-submit {
+  padding: 0.85rem 1.4rem;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+.account-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+.account-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.account-submit.red {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+}
+.account-submit.red:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.5);
+}
+.account-submit.blue {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+/* Bloc info */
+.account-info-box {
+  background: #0b1220;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+.account-info-box strong {
+  color: #f1f5f9;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+.account-info-box ul {
+  padding-left: 1.25rem;
+}
+.account-info-box ul li {
+  margin-bottom: 0.35rem;
+}
+.account-info-box.danger {
+  border-left-color: #dc2626;
+}
+.account-info-box.warning {
+  border-left-color: #f59e0b;
+  background: #1c1408;
+  color: #fde68a;
+}
+
+@media (max-width: 640px) {
+  .account-page {
+    padding: 1rem;
+  }
+  .account-panel {
+    padding: 1.25rem;
+  }
+}
