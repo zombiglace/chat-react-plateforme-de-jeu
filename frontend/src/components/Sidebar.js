@@ -88,6 +88,12 @@ export default function Sidebar() {
           >
             <span className="sb-icon">🎮</span> Jeux
           </Link>
+  <Link
+    to="/mon-compte"
+    className={`sb-nav-item ${loc.pathname === "/mon-compte" ? "active" : ""}`}
+  >
+    <span className="sb-icon">👤</span> Mon compte
+  </Link>
           {user.role === "admin" && (
             <Link
               to="/admin"
