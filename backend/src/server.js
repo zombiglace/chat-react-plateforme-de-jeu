@@ -570,6 +570,7 @@ app.put("/api/me/update", protect, async (req, res) => {
 });
 
 // 🗑️ DROIT À L'EFFACEMENT (art. 17 RGPD)
+// ⚠️ Suppression volontaire : AUCUN ban ajouté → l'utilisateur peut se réinscrire
 app.delete("/api/me/delete", protect, async (req, res) => {
   try {
     const { password, confirm } = req.body;
@@ -593,26 +594,20 @@ app.delete("/api/me/delete", protect, async (req, res) => {
     const email = me.email;
     const userId = me.id;
 
-    // 1. Ajouter à la liste des bannissements
-    await BanList.create({
-      email,
-      reason: "Suppression volontaire du compte (RGPD art. 17)",
-    });
-
-    // 2. Anonymiser les messages publics (préserver les conversations des autres)
+    // 1. Anonymiser les messages publics (préserver les conversations des autres)
     await Message.update(
       { senderId: 1 },
       { where: { senderId: userId, roomId: { [Op.ne]: null } } }
     );
 
-    // 3. Supprimer les messages privés
+    // 2. Supprimer les messages privés
     await Message.destroy({
       where: {
         [Op.or]: [{ senderId: userId }, { receiverId: userId }],
       },
     });
 
-    // 4. Supprimer les documents + fichiers physiques
+    // 3. Supprimer les documents + fichiers physiques
     const myDocs = await Document.findAll({ where: { uploadedById: userId } });
     for (const doc of myDocs) {
       try {
@@ -629,17 +624,17 @@ app.delete("/api/me/delete", protect, async (req, res) => {
     }
     await Document.destroy({ where: { uploadedById: userId } });
 
-    // 5. Éjecter les sockets actives
+    // 4. Éjecter les sockets actives
     const sockets = await io.in(`u:${userId}`).fetchSockets();
     for (const s of sockets) {
       s.emit("user:deleted", { reason: "Compte supprimé (RGPD)" });
       s.disconnect(true);
     }
 
-    // 6. Supprimer le compte
+    // 5. Supprimer le compte (SANS ajouter à la BanList)
     await me.destroy();
 
-    console.log(`🗑️ Compte supprimé (RGPD) : ${email}`);
+    console.log(`🗑️ Compte supprimé (RGPD, sans ban) : ${email}`);
 
     res.json({
       ok: true,
