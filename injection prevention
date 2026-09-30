@@ -1,0 +1,85 @@
+document.addEventListener("DOMContentLoaded", () => {
+    // Fond de la popup
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        font-family: Arial, sans-serif;
+    `;
+
+    // Fenêtre
+    const popup = document.createElement("div");
+    popup.style.cssText = `
+        width: min(500px, 90%);
+        max-height: 85vh;
+        overflow-y: auto;
+        background: #18181b;
+        color: #fff;
+        border-radius: 16px;
+        padding: 28px;
+        box-sizing: border-box;
+        box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        border: 1px solid #333;
+    `;
+
+    popup.innerHTML = `
+        <h2 style="margin-top:0; color:#60a5fa;">
+            🔒 Informations importantes
+        </h2>
+
+        <p>
+            Pour assurer la sécurité et le bon fonctionnement du service,
+            les administrateurs disposent de certaines fonctionnalités de
+            modération et d'administration.
+        </p>
+
+        <ul style="line-height:1.7;">
+            <li>Consulter les messages privés dans le cadre de la modération et de la sécurité.</li>
+            <li>Mute ou bannir un utilisateur.</li>
+            <li>Supprimer un compte.</li>
+            <li>Fermer un salon de jeu.</li>
+            <li>Intervenir techniquement dans le chat, notamment injecter du code si nécessaire à la maintenance ou à la sécurité.</li>
+        </ul>
+
+        <h3 style="color:#34d399;">🔐 Protection de vos mots de passe</h3>
+
+        <p>
+            Vos mots de passe sont <strong>hachés</strong> et ne sont pas
+            stockés en clair. Ils ne sont donc normalement pas lisibles
+            directement par les administrateurs.
+        </p>
+
+        <p style="color:#aaa; font-size:13px;">
+            En continuant à utiliser le service, vous reconnaissez avoir
+            pris connaissance de ces informations.
+        </p>
+
+        <button id="closeSecurityPopup" style="
+            width:100%;
+            padding:12px;
+            margin-top:10px;
+            border:0;
+            border-radius:10px;
+            background:#2563eb;
+            color:white;
+            font-size:16px;
+            font-weight:bold;
+            cursor:pointer;
+        ">
+            J’ai compris
+        </button>
+    `;
+
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+
+    // Fermeture
+    document.getElementById("closeSecurityPopup").addEventListener("click", () => {
+        overlay.remove();
+    });
+});
