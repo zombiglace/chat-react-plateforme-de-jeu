@@ -32,9 +32,9 @@ export default function Login() {
       <div className="auth-brand">
         <div className="auth-brand-inner">
           <div className="auth-logo">💬</div>
-          <h1>Chat React</h1>
+          <h1>Chat NSI TERM</h1>
           <p className="auth-tagline">
-            L'endroit où ta classe discute, partage et joue ensemble.
+            L'endroit où la classe discute tranquillement en NSI.
           </p>
 
           <ul className="auth-features">
