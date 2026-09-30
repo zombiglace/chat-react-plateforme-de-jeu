@@ -209,19 +209,23 @@ export default function Sidebar() {
 
         {/* ═══ FOOTER ═══ */}
         <div className="sb-footer">
-          <button className="sb-logout" onClick={logout} title="Déconnexion">
-            <span className="sb-icon">🚪</span>
-            <span className="sb-label">Déconnexion</span>
-          </button>
-          <div className="sb-legal-links">
-            <Link to="/mentions-legales">Mentions</Link>
-            <span>·</span>
-            <Link to="/confidentialite">Confidentialité</Link>
-            <span>·</span>
-            <Link to="/cgu">CGU</Link>
-          </div>
-          <div className="sb-copyright">© 2026 Julien Traineau</div>
-        </div>
+  <button className="sb-logout" onClick={logout}>
+    <span className="sb-icon">🚪</span>
+    <span className="sb-label">Déconnexion</span>
+  </button>
+
+  <div className="sb-legal-links">
+    <Link to="/mentions-legales">Mentions</Link>
+    <span>·</span>
+    <Link to="/confidentialite">Confidentialité</Link>
+    <span>·</span>
+    <Link to="/cgu">CGU</Link>
+    <span>·</span>
+    <Link to="/accessibilite">Accessibilité</Link>
+  </div>
+
+  <div className="sb-copyright">© 2026 Julien Traineau</div>
+</div>
       </aside>
 
       <main className="app-main">
