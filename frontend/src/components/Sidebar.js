@@ -135,10 +135,15 @@ export default function Sidebar() {
         </div>
 
         <div className="sb-footer">
-          <button className="sb-logout" onClick={logout}>
-            🚪 Déconnexion
-          </button>
-        </div>
+  <button className="sb-logout" onClick={logout}>
+    🚪 Déconnexion
+  </button>
+  <div className="sb-legal-links">
+    <Link to="/mentions-legales">Mentions légales</Link>
+    <Link to="/confidentialite">Confidentialité</Link>
+    <Link to="/accessibilite">Accessibilité</Link>
+  </div>
+</div>
       </aside>
 
       <main className="app-main">
