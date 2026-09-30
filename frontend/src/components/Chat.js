@@ -28,6 +28,8 @@ export default function Chat() {
 
   useEffect(() => {
     if (!socket || !currentRoom) return;
+
+    console.log("📥 Rejoins la room", currentRoom.id);
     socket.emit("chat:join", { roomId: currentRoom.id });
 
     if (privateWith) {
@@ -40,6 +42,7 @@ export default function Chat() {
 
   useEffect(() => {
     if (!socket) return;
+    console.log("✅ Chat: listeners attachés");
 
     const onRoom = (msg) => {
       if (privateWithRef.current) return;
@@ -74,7 +77,13 @@ export default function Chat() {
     };
 
     const onTyping = ({ userId, username, isTyping }) => {
-      if (userId === user.id) return;
+      console.log("📥 Reçu chat:typing", {
+        userId,
+        username,
+        isTyping,
+        me: user.id,
+      });
+      if (Number(userId) === Number(user.id)) return;
       setTypingUsers((prev) => {
         const others = prev.filter((u) => u.userId !== userId);
         if (!isTyping) return others;
@@ -84,7 +93,13 @@ export default function Chat() {
 
     const onTypingPrivate = ({ userId, username, isTyping }) => {
       const other = privateWithRef.current;
-      if (!other || other.id !== userId) return;
+      console.log("📥 Reçu chat:typing:private", {
+        userId,
+        username,
+        isTyping,
+        otherId: other?.id,
+      });
+      if (!other || Number(other.id) !== Number(userId)) return;
       setTypingUsers((prev) => {
         const others = prev.filter((u) => u.userId !== userId);
         if (!isTyping) return others;
@@ -100,6 +115,7 @@ export default function Chat() {
     socket.on("chat:typing:private", onTypingPrivate);
 
     return () => {
+      console.log("❌ Chat: listeners détachés");
       socket.off("chat:room", onRoom);
       socket.off("chat:private", onPriv);
       socket.off("chat:error", onErr);
