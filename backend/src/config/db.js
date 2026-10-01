@@ -40,22 +40,18 @@ const Message = sequelize.define("Message", {
   type: { type: DataTypes.ENUM("text", "emoji", "system"), defaultValue: "text" },
 });
 
-const Document = sequelize.define("Document", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  name: { type: DataTypes.STRING, allowNull: false },
-  url: { type: DataTypes.STRING, allowNull: false },
-  size: DataTypes.INTEGER,
-  mimetype: DataTypes.STRING,
-  pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
-});
-
 const BanList = sequelize.define("BanList", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   email: { type: DataTypes.STRING, allowNull: true },
   reason: { type: DataTypes.STRING, defaultValue: "" },
 });
 
-// Associations
+// 📌 Fichiers épinglés (identifiés par leur nom de fichier)
+const PinnedDoc = sequelize.define("PinnedDoc", {
+  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+  filename: { type: DataTypes.STRING, allowNull: false, unique: true },
+});
+
 User.hasMany(Room, { foreignKey: "createdById", as: "createdRooms" });
 Room.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
@@ -67,9 +63,6 @@ Message.belongsTo(User, { foreignKey: "receiverId", as: "receiver" });
 
 Room.hasMany(Message, { foreignKey: "roomId", as: "messages", onDelete: "CASCADE" });
 Message.belongsTo(Room, { foreignKey: "roomId", as: "room" });
-
-User.hasMany(Document, { foreignKey: "uploadedById", as: "documents" });
-Document.belongsTo(User, { foreignKey: "uploadedById", as: "uploadedBy" });
 
 async function connectDB() {
   try {
@@ -87,4 +80,4 @@ async function connectDB() {
   }
 }
 
-module.exports = { sequelize, connectDB, User, Room, Message, Document, BanList };
+module.exports = { sequelize, connectDB, User, Room, Message, BanList, PinnedDoc };
