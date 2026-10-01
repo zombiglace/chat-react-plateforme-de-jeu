@@ -59,11 +59,8 @@ export default function Documents() {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  // 📡 Écoute les mises à jour de pin en temps réel
   useEffect(() => {
     if (!socket) return;
     const onUpdated = ({ id, pinned }) => {
@@ -136,8 +133,7 @@ export default function Documents() {
     d.name.toLowerCase().includes(query.toLowerCase())
   );
 
-  const canDelete = (d) =>
-    user.role === "admin" || d.uploadedBy?.id === user.id;
+  const canDelete = (d) => user.role === "admin" || d.uploadedBy?.id === user.id;
 
   return (
     <div className="docs-page">
