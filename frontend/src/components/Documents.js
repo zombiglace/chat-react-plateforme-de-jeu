@@ -1,32 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_URL =
+  process.env.REACT_APP_API_URL || "https://chat-react-api.onrender.com";
 
 const EXT_ICONS = {
-  pdf: "📕",
-  doc: "📘",
-  docx: "📘",
-  txt: "📄",
-  md: "📝",
-  png: "🖼️",
-  jpg: "🖼️",
-  jpeg: "🖼️",
-  gif: "🖼️",
-  webp: "🖼️",
-  mp4: "🎬",
-  mov: "🎬",
-  avi: "🎬",
-  mp3: "🎵",
-  wav: "🎵",
-  zip: "📦",
-  rar: "📦",
-  xls: "📊",
-  xlsx: "📊",
-  csv: "📊",
-  ppt: "📽️",
-  pptx: "📽️",
+  pdf: "📕", doc: "📘", docx: "📘", txt: "📄", md: "📝",
+  png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", webp: "🖼️",
+  mp4: "🎬", mov: "🎬", avi: "🎬",
+  mp3: "🎵", wav: "🎵",
+  zip: "📦", rar: "📦",
+  xls: "📊", xlsx: "📊", csv: "📊",
+  ppt: "📽️", pptx: "📽️",
 };
 
 function icon(name = "") {
@@ -37,12 +24,8 @@ function icon(name = "") {
 function formatSize(bytes) {
   if (!bytes) return "—";
   const u = ["o", "Ko", "Mo", "Go"];
-  let i = 0,
-    n = bytes;
-  while (n >= 1024 && i < 3) {
-    n /= 1024;
-    i++;
-  }
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < 3) { n /= 1024; i++; }
   return `${n.toFixed(n >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
 }
 
@@ -59,6 +42,7 @@ function formatDate(d) {
 
 export default function Documents() {
   const { user } = useAuth();
+  const socket = useSocket();
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -78,6 +62,23 @@ export default function Documents() {
   useEffect(() => {
     load();
   }, []);
+
+  // 📡 Écoute les mises à jour de pin en temps réel
+  useEffect(() => {
+    if (!socket) return;
+    const onUpdated = ({ id, pinned }) => {
+      setDocs((prev) =>
+        prev
+          .map((d) => (d.id === id ? { ...d, pinned } : d))
+          .sort((a, b) => {
+            if (a.pinned !== b.pinned) return b.pinned - a.pinned;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          })
+      );
+    };
+    socket.on("document:updated", onUpdated);
+    return () => socket.off("document:updated", onUpdated);
+  }, [socket]);
 
   const uploadFiles = async (files) => {
     if (!files?.length) return;
@@ -109,6 +110,22 @@ export default function Documents() {
     }
   };
 
+  const togglePin = async (doc) => {
+    try {
+      const { data } = await api.post(`/documents/${doc.id}/pin`);
+      setDocs((prev) =>
+        prev
+          .map((d) => (d.id === doc.id ? { ...d, pinned: data.pinned } : d))
+          .sort((a, b) => {
+            if (a.pinned !== b.pinned) return b.pinned - a.pinned;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          })
+      );
+    } catch (e) {
+      alert("Erreur : " + (e.response?.data?.message || e.message));
+    }
+  };
+
   const onDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -116,7 +133,7 @@ export default function Documents() {
   };
 
   const filtered = docs.filter((d) =>
-    d.name.toLowerCase().includes(query.toLowerCase()),
+    d.name.toLowerCase().includes(query.toLowerCase())
   );
 
   const canDelete = (d) =>
@@ -128,8 +145,7 @@ export default function Documents() {
         <div>
           <h1>Documents partagés</h1>
           <p className="docs-sub">
-            {docs.length} fichier{docs.length > 1 ? "s" : ""} disponible
-            {docs.length > 1 ? "s" : ""}
+            {docs.length} fichier{docs.length > 1 ? "s" : ""} disponible{docs.length > 1 ? "s" : ""}
           </p>
         </div>
         <button
@@ -150,10 +166,7 @@ export default function Documents() {
 
       <div
         className={`drop-zone ${dragOver ? "over" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         onClick={() => inputRef.current?.click()}
@@ -175,18 +188,17 @@ export default function Documents() {
         <p className="docs-empty">Chargement…</p>
       ) : filtered.length === 0 ? (
         <p className="docs-empty">
-          {query
-            ? "Aucun fichier ne correspond."
-            : "Aucun document pour le moment."}
+          {query ? "Aucun fichier ne correspond." : "Aucun document pour le moment."}
         </p>
       ) : (
         <div className="docs-grid">
           {filtered.map((d) => (
-            <div key={d.id} className="doc-card">
+            <div key={d.id} className={`doc-card ${d.pinned ? "pinned" : ""}`}>
+              {d.pinned && <span className="doc-pin-badge">📌</span>}
               <div className="doc-icon">{icon(d.name)}</div>
               <div className="doc-body">
                 <a
-                  href={`${API}${d.url}`}
+                  href={`${API_URL}${d.url}`}
                   target="_blank"
                   rel="noreferrer"
                   className="doc-name"
@@ -201,15 +213,27 @@ export default function Documents() {
                   par <strong>{d.uploadedBy?.username || "?"}</strong>
                 </div>
               </div>
-              {canDelete(d) && (
-                <button
-                  className="doc-del"
-                  onClick={() => removeDoc(d)}
-                  title="Supprimer"
-                >
-                  ✕
-                </button>
-              )}
+
+              <div className="doc-actions">
+                {user.role === "admin" && (
+                  <button
+                    className={`doc-action-btn ${d.pinned ? "pin-active" : ""}`}
+                    onClick={() => togglePin(d)}
+                    title={d.pinned ? "Désépingler" : "Épingler"}
+                  >
+                    📌
+                  </button>
+                )}
+                {canDelete(d) && (
+                  <button
+                    className="doc-action-btn danger"
+                    onClick={() => removeDoc(d)}
+                    title="Supprimer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
