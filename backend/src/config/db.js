@@ -11,6 +11,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
         : false,
   },
 });
+
 const User = sequelize.define("User", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   username: { type: DataTypes.STRING, unique: true, allowNull: false },
@@ -23,7 +24,6 @@ const User = sequelize.define("User", {
   mutedReason: { type: DataTypes.STRING, defaultValue: "" },
   banned: { type: DataTypes.BOOLEAN, defaultValue: false },
   bannedReason: { type: DataTypes.STRING, defaultValue: "" },
-  // 🏆 Classements
   unoWins: { type: DataTypes.INTEGER, defaultValue: 0 },
   chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
 });
@@ -37,10 +37,7 @@ const Room = sequelize.define("Room", {
 const Message = sequelize.define("Message", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   content: { type: DataTypes.TEXT, allowNull: false },
-  type: {
-    type: DataTypes.ENUM("text", "emoji", "system"),
-    defaultValue: "text",
-  },
+  type: { type: DataTypes.ENUM("text", "emoji", "system"), defaultValue: "text" },
 });
 
 const Document = sequelize.define("Document", {
@@ -49,6 +46,7 @@ const Document = sequelize.define("Document", {
   url: { type: DataTypes.STRING, allowNull: false },
   size: DataTypes.INTEGER,
   mimetype: DataTypes.STRING,
+  pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
 });
 
 const BanList = sequelize.define("BanList", {
@@ -67,11 +65,7 @@ Message.belongsTo(User, { foreignKey: "senderId", as: "sender" });
 User.hasMany(Message, { foreignKey: "receiverId", as: "receivedMessages" });
 Message.belongsTo(User, { foreignKey: "receiverId", as: "receiver" });
 
-Room.hasMany(Message, {
-  foreignKey: "roomId",
-  as: "messages",
-  onDelete: "CASCADE",
-});
+Room.hasMany(Message, { foreignKey: "roomId", as: "messages", onDelete: "CASCADE" });
 Message.belongsTo(Room, { foreignKey: "roomId", as: "room" });
 
 User.hasMany(Document, { foreignKey: "uploadedById", as: "documents" });
@@ -93,12 +87,4 @@ async function connectDB() {
   }
 }
 
-module.exports = {
-  sequelize,
-  connectDB,
-  User,
-  Room,
-  Message,
-  Document,
-  BanList,
-};
+module.exports = { sequelize, connectDB, User, Room, Message, Document, BanList };
