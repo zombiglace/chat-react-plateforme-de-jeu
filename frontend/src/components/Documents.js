@@ -5,23 +5,30 @@ import { useSocket } from "../context/SocketContext";
 
 const EXT_ICONS = {
   pdf: "📕", doc: "📘", docx: "📘", txt: "📄", md: "📝",
-  png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", webp: "🖼️",
-  mp4: "🎬", mov: "🎬", avi: "🎬",
-  mp3: "🎵", wav: "🎵",
-  zip: "📦", rar: "📦",
+  png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", webp: "🖼️", svg: "🖼️",
+  mp4: "🎬", mov: "🎬", avi: "🎬", mkv: "🎬",
+  mp3: "🎵", wav: "🎵", ogg: "🎵",
+  zip: "📦", rar: "📦", tar: "📦", gz: "📦",
   xls: "📊", xlsx: "📊", csv: "📊",
   ppt: "📽️", pptx: "📽️",
+  js: "💻", py: "💻", html: "💻", css: "💻", json: "💻",
 };
 
-function icon(name = "") {
-  const ext = name.split(".").pop().toLowerCase();
-  return EXT_ICONS[ext] || "📎";
+function getExt(filename = "") {
+  return filename.split(".").pop().toLowerCase();
+}
+
+function getIcon(filename) {
+  return EXT_ICONS[getExt(filename)] || "📎";
 }
 
 function formatDate(d) {
   if (!d) return "";
-  const date = new Date(d);
-  return date.toLocaleDateString("fr-FR");
+  return new Date(d).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function Documents() {
@@ -31,19 +38,19 @@ export default function Documents() {
   const [pinnedList, setPinnedList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("grid");
 
-  // 📥 Charge le manifest (liste de fichiers)
+  // 📥 Charge le manifest
   useEffect(() => {
     fetch("/upload/manifest.json")
       .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        setDocs(Array.isArray(data) ? data : []);
-      })
+      .then((data) => setDocs(Array.isArray(data) ? data : []))
       .catch(() => setDocs([]))
       .finally(() => setLoading(false));
   }, []);
 
-  // 📌 Charge la liste des épinglés depuis le backend
+  // 📌 Charge les épinglés
   const loadPinned = () => {
     api.get("/documents/pinned").then((r) => setPinnedList(r.data));
   };
@@ -52,14 +59,12 @@ export default function Documents() {
     loadPinned();
   }, []);
 
-  // 📡 Écoute les mises à jour de pin en temps réel
+  // 📡 Pin temps réel
   useEffect(() => {
     if (!socket) return;
     const onPinned = ({ filename, pinned }) => {
       setPinnedList((prev) => {
-        if (pinned) {
-          return prev.includes(filename) ? prev : [...prev, filename];
-        }
+        if (pinned) return prev.includes(filename) ? prev : [...prev, filename];
         return prev.filter((f) => f !== filename);
       });
     };
@@ -67,114 +72,185 @@ export default function Documents() {
     return () => socket.off("document:pinned", onPinned);
   }, [socket]);
 
-  // 📌 Toggle pin (admin)
-  const togglePin = async (doc) => {
+  // 📌 Toggle pin
+  const togglePin = async (doc, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       const { data } = await api.post("/documents/pin", {
         filename: doc.filename,
       });
-      setPinnedList((prev) => {
-        if (data.pinned) return [...prev, doc.filename];
-        return prev.filter((f) => f !== doc.filename);
-      });
+      setPinnedList((prev) =>
+        data.pinned ? [...prev, doc.filename] : prev.filter((f) => f !== doc.filename)
+      );
     } catch (e) {
       alert("Erreur : " + (e.response?.data?.message || e.message));
     }
   };
 
-  // Fusionne manifest + état pinned + trie
+  // 🔀 Fusion + tri
   const merged = docs
     .map((d) => ({ ...d, pinned: pinnedList.includes(d.filename) }))
     .sort((a, b) => {
       if (a.pinned !== b.pinned) return b.pinned - a.pinned;
-      return 0;
+      return (a.name || "").localeCompare(b.name || "", "fr");
     });
 
-  const filtered = merged.filter(
-    (d) =>
-      d.name.toLowerCase().includes(query.toLowerCase()) ||
-      d.filename.toLowerCase().includes(query.toLowerCase())
-  );
+  // 🔍 Filtres
+  const filtered = merged.filter((d) => {
+    const q = query.toLowerCase();
+    const matchQuery =
+      !query ||
+      (d.name || "").toLowerCase().includes(q) ||
+      (d.filename || "").toLowerCase().includes(q) ||
+      (d.description || "").toLowerCase().includes(q);
+
+    if (!matchQuery) return false;
+
+    if (filter === "pinned") return d.pinned;
+    if (filter === "pdf") return getExt(d.filename) === "pdf";
+    if (filter === "img") return ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(getExt(d.filename));
+    if (filter === "other") return !["pdf", "png", "jpg", "jpeg", "gif", "webp", "svg"].includes(getExt(d.filename));
+    return true;
+  });
+
+  const pinnedCount = merged.filter((d) => d.pinned).length;
 
   return (
     <div className="docs-page">
-      <div className="docs-head">
-        <div>
+      {/* ═══ HEADER ═══ */}
+      <div className="docs-header">
+        <div className="docs-header-icon">📁</div>
+        <div className="docs-header-text">
           <h1>Documents partagés</h1>
-          <p className="docs-sub">
-            {docs.length} fichier{docs.length > 1 ? "s" : ""} disponible{docs.length > 1 ? "s" : ""}
+          <p>
+            {docs.length} fichier{docs.length > 1 ? "s" : ""}
+            {pinnedCount > 0 && ` · ${pinnedCount} épinglé${pinnedCount > 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
 
-      {/* Info admin : comment ajouter des fichiers */}
-      {user.role === "admin" && (
-        <div className="docs-admin-info">
-          <strong>📌 Ajouter un fichier</strong>
-          <ol>
-            <li>Place ton fichier dans <code>frontend/public/upload/</code></li>
-            <li>Ajoute une entrée dans <code>manifest.json</code></li>
-            <li><code>git push</code> → Vercel redéploie automatiquement</li>
-          </ol>
-        </div>
-      )}
-
+      {/* ═══ TOOLBAR ═══ */}
       <div className="docs-toolbar">
-        <input
-          className="docs-search"
-          placeholder="Rechercher un fichier…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="docs-search-wrap">
+          <span className="docs-search-icon">🔍</span>
+          <input
+            className="docs-search"
+            placeholder="Rechercher un document…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button className="docs-clear" onClick={() => setQuery("")}>✕</button>
+          )}
+        </div>
+
+        <div className="docs-filters">
+          <button
+            className={`docs-filter ${filter === "all" ? "active" : ""}`}
+            onClick={() => setFilter("all")}
+          >
+            Tout
+          </button>
+          <button
+            className={`docs-filter ${filter === "pinned" ? "active" : ""}`}
+            onClick={() => setFilter("pinned")}
+          >
+            📌 Épinglés
+          </button>
+          <button
+            className={`docs-filter ${filter === "pdf" ? "active" : ""}`}
+            onClick={() => setFilter("pdf")}
+          >
+            📕 PDF
+          </button>
+          <button
+            className={`docs-filter ${filter === "img" ? "active" : ""}`}
+            onClick={() => setFilter("img")}
+          >
+            🖼️ Images
+          </button>
+          <button
+            className={`docs-filter ${filter === "other" ? "active" : ""}`}
+            onClick={() => setFilter("other")}
+          >
+            📎 Autres
+          </button>
+        </div>
+
+        <div className="docs-view-toggle">
+          <button
+            className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+            onClick={() => setViewMode("grid")}
+            title="Vue grille"
+          >
+            ▦
+          </button>
+          <button
+            className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+            onClick={() => setViewMode("list")}
+            title="Vue liste"
+          >
+            ☰
+          </button>
+        </div>
       </div>
 
+      {/* ═══ CONTENU ═══ */}
       {loading ? (
-        <p className="docs-empty">Chargement…</p>
+        <div className="docs-loading">
+          <div className="docs-spinner"></div>
+          <p>Chargement…</p>
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="docs-empty">
-          {query
-            ? "Aucun fichier ne correspond."
-            : "Aucun document disponible pour le moment."}
-        </p>
+        <div className="docs-empty-state">
+          <div className="docs-empty-icon">{query ? "🔍" : "📭"}</div>
+          <h3>{query ? "Aucun résultat" : "Aucun document"}</h3>
+          <p>
+            {query
+              ? `Aucun fichier ne correspond à « ${query} »`
+              : "Les documents apparaîtront ici dès qu'ils seront ajoutés."}
+          </p>
+        </div>
       ) : (
-        <div className="docs-grid">
+        <div className={`docs-${viewMode === "grid" ? "grid" : "list"}`}>
           {filtered.map((d) => (
-            <div
+            <a
               key={d.filename}
-              className={`doc-card ${d.pinned ? "pinned" : ""}`}
+              href={`/upload/${encodeURIComponent(d.filename)}`}
+              target="_blank"
+              rel="noreferrer"
+              className={`doc-card ${d.pinned ? "pinned" : ""} ${viewMode}`}
             >
               {d.pinned && <span className="doc-pin-badge">📌</span>}
-              <div className="doc-icon">{icon(d.filename)}</div>
+
+              <div className="doc-icon-wrap">
+                <div className="doc-icon">{getIcon(d.filename)}</div>
+                <div className="doc-ext">{getExt(d.filename).toUpperCase()}</div>
+              </div>
+
               <div className="doc-body">
-                <a
-                  href={`/upload/${d.filename}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="doc-name"
-                  title={d.name}
-                >
+                <div className="doc-name" title={d.name}>
                   {d.name}
-                </a>
+                </div>
                 {d.description && (
-                  <div className="doc-meta">{d.description}</div>
+                  <div className="doc-desc">{d.description}</div>
                 )}
                 {d.addedAt && (
-                  <div className="doc-author">Ajouté le {formatDate(d.addedAt)}</div>
+                  <div className="doc-date">{formatDate(d.addedAt)}</div>
                 )}
               </div>
 
               {user.role === "admin" && (
-                <div className="doc-actions">
-                  <button
-                    className={`doc-action-btn ${d.pinned ? "pin-active" : ""}`}
-                    onClick={() => togglePin(d)}
-                    title={d.pinned ? "Désépingler" : "Épingler"}
-                  >
-                    📌
-                  </button>
-                </div>
+                <button
+                  className={`doc-pin-btn ${d.pinned ? "active" : ""}`}
+                  onClick={(e) => togglePin(d, e)}
+                  title={d.pinned ? "Désépingler" : "Épingler"}
+                >
+                  📌
+                </button>
               )}
-            </div>
+            </a>
           ))}
         </div>
       )}
