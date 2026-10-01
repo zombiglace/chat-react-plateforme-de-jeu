@@ -18,18 +18,11 @@ export default function Chat() {
   const currentRoomRef = useRef(null);
   const privateWithRef = useRef(null);
 
-  useEffect(() => {
-    currentRoomRef.current = currentRoom;
-  }, [currentRoom]);
+  useEffect(() => { currentRoomRef.current = currentRoom; }, [currentRoom]);
+  useEffect(() => { privateWithRef.current = privateWith; }, [privateWith]);
 
-  useEffect(() => {
-    privateWithRef.current = privateWith;
-  }, [privateWith]);
-
-  // Rejoint la room + charge les messages
   useEffect(() => {
     if (!socket || !currentRoom) return;
-
     socket.emit("chat:join", { roomId: currentRoom.id });
 
     if (privateWith) {
@@ -40,7 +33,6 @@ export default function Chat() {
     setTypingUsers([]);
   }, [socket, currentRoom, privateWith]);
 
-  // Listeners socket
   useEffect(() => {
     if (!socket) return;
 
@@ -48,9 +40,7 @@ export default function Chat() {
       if (privateWithRef.current) return;
       const cur = currentRoomRef.current;
       if (cur && msg.roomId && Number(msg.roomId) !== Number(cur.id)) return;
-      setMessages((prev) =>
-        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
-      );
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     };
 
     const onPriv = (msg) => {
@@ -58,9 +48,7 @@ export default function Chat() {
       if (!other) return;
       const ok = msg.sender?.id === other.id || msg.sender?.id === user.id;
       if (!ok) return;
-      setMessages((prev) =>
-        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
-      );
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
     };
 
     const onErr = (e) => setToast(e.message);
@@ -68,15 +56,9 @@ export default function Chat() {
     const onInject = ({ code, by }) => {
       setToast(`🧩 Code admin reçu (${by})`);
       setTimeout(() => setToast(""), 3000);
-      try {
-        // eslint-disable-next-line
-        new Function(code)();
-      } catch (err) {
-        console.error("Injection:", err);
-      }
+      try { new Function(code)(); } catch (err) { console.error(err); }
     };
 
-    // ✍️ Reçoit l'event "typing" pour un salon
     const onTyping = ({ userId, username, isTyping }) => {
       if (Number(userId) === Number(user.id)) return;
       setTypingUsers((prev) => {
@@ -86,7 +68,6 @@ export default function Chat() {
       });
     };
 
-    // ✍️ Reçoit l'event "typing" pour un MP
     const onTypingPrivate = ({ userId, username, isTyping }) => {
       const other = privateWithRef.current;
       if (!other || Number(other.id) !== Number(userId)) return;
@@ -97,12 +78,18 @@ export default function Chat() {
       });
     };
 
+    // 🗑️ Suppression temps réel
+    const onDeleted = ({ id }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    };
+
     socket.on("chat:room", onRoom);
     socket.on("chat:private", onPriv);
     socket.on("chat:error", onErr);
     socket.on("chat:inject", onInject);
     socket.on("chat:typing", onTyping);
     socket.on("chat:typing:private", onTypingPrivate);
+    socket.on("message:deleted", onDeleted);
 
     return () => {
       socket.off("chat:room", onRoom);
@@ -111,23 +98,28 @@ export default function Chat() {
       socket.off("chat:inject", onInject);
       socket.off("chat:typing", onTyping);
       socket.off("chat:typing:private", onTypingPrivate);
+      socket.off("message:deleted", onDeleted);
     };
   }, [socket, user.id]);
 
   const send = (content) => {
     if (!socket) return;
-    if (privateWith) {
-      socket.emit("chat:private", { receiverId: privateWith.id, content });
-    } else if (currentRoom) {
-      socket.emit("chat:room", { roomId: currentRoom.id, content });
+    if (privateWith) socket.emit("chat:private", { receiverId: privateWith.id, content });
+    else if (currentRoom) socket.emit("chat:room", { roomId: currentRoom.id, content });
+  };
+
+  // 🗑️ Suppression d'un message
+  const deleteMessage = async (id) => {
+    try {
+      await api.delete(`/messages/${id}`);
+    } catch (e) {
+      setToast(e.response?.data?.message || "Impossible de supprimer");
     }
   };
 
-  // Texte à afficher selon le nombre de personnes qui tapent
   const typingLabel = (() => {
     if (typingUsers.length === 0) return "";
-    if (typingUsers.length === 1)
-      return `${typingUsers[0].username} est en train d'écrire`;
+    if (typingUsers.length === 1) return `${typingUsers[0].username} est en train d'écrire`;
     if (typingUsers.length === 2)
       return `${typingUsers[0].username} et ${typingUsers[1].username} écrivent`;
     return `${typingUsers.length} personnes écrivent`;
@@ -139,9 +131,7 @@ export default function Chat() {
         <div className="ch-title">
           {privateWith ? (
             <>
-              <span className="ch-avatar">
-                {privateWith.username[0].toUpperCase()}
-              </span>{" "}
+              <span className="ch-avatar">{privateWith.username[0].toUpperCase()}</span>{" "}
               {privateWith.username}
             </>
           ) : (
@@ -158,32 +148,26 @@ export default function Chat() {
       </header>
 
       {toast && (
-        <div className="chat-toast" onClick={() => setToast("")}>
-          {toast}
-        </div>
+        <div className="chat-toast" onClick={() => setToast("")}>{toast}</div>
       )}
 
-      <MessageList messages={messages} me={user.id} />
+      <MessageList
+        messages={messages}
+        me={user.id}
+        isAdmin={user.role === "admin"}
+        onDelete={deleteMessage}
+      />
 
-      {/* ✍️ Indicateur "en train d'écrire" */}
       <div className={`typing-bar ${typingUsers.length ? "visible" : ""}`}>
         {typingUsers.length > 0 && (
           <>
-            <span className="typing-dots">
-              <i></i>
-              <i></i>
-              <i></i>
-            </span>
+            <span className="typing-dots"><i></i><i></i><i></i></span>
             <span className="typing-text">{typingLabel}…</span>
           </>
         )}
       </div>
 
-      <MessageInput
-        onSend={send}
-        roomId={currentRoom?.id}
-        privateWith={privateWith}
-      />
+      <MessageInput onSend={send} roomId={currentRoom?.id} privateWith={privateWith} />
     </div>
   );
 }
