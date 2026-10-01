@@ -1,10 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
-
-const API_URL =
-  process.env.REACT_APP_API_URL || "https://chat-react-api.onrender.com";
 
 const EXT_ICONS = {
   pdf: "📕", doc: "📘", docx: "📘", txt: "📄", md: "📝",
@@ -21,22 +18,9 @@ function icon(name = "") {
   return EXT_ICONS[ext] || "📎";
 }
 
-function formatSize(bytes) {
-  if (!bytes) return "—";
-  const u = ["o", "Ko", "Mo", "Go"];
-  let i = 0, n = bytes;
-  while (n >= 1024 && i < 3) { n /= 1024; i++; }
-  return `${n.toFixed(n >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
-}
-
 function formatDate(d) {
-  const now = new Date();
+  if (!d) return "";
   const date = new Date(d);
-  const diff = (now - date) / 1000;
-  if (diff < 60) return "à l'instant";
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)} h`;
-  if (diff < 604800) return `il y a ${Math.floor(diff / 86400)} j`;
   return date.toLocaleDateString("fr-FR");
 }
 
@@ -44,96 +28,73 @@ export default function Documents() {
   const { user } = useAuth();
   const socket = useSocket();
   const [docs, setDocs] = useState([]);
+  const [pinnedList, setPinnedList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [query, setQuery] = useState("");
-  const inputRef = useRef(null);
 
-  const load = async () => {
-    try {
-      const { data } = await api.get("/documents");
-      setDocs(data);
-    } finally {
-      setLoading(false);
-    }
+  // 📥 Charge le manifest (liste de fichiers)
+  useEffect(() => {
+    fetch("/upload/manifest.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        setDocs(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 📌 Charge la liste des épinglés depuis le backend
+  const loadPinned = () => {
+    api.get("/documents/pinned").then((r) => setPinnedList(r.data));
   };
-
-  useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    loadPinned();
+  }, []);
+
+  // 📡 Écoute les mises à jour de pin en temps réel
+  useEffect(() => {
     if (!socket) return;
-    const onUpdated = ({ id, pinned }) => {
-      setDocs((prev) =>
-        prev
-          .map((d) => (d.id === id ? { ...d, pinned } : d))
-          .sort((a, b) => {
-            if (a.pinned !== b.pinned) return b.pinned - a.pinned;
-            return new Date(b.createdAt) - new Date(a.createdAt);
-          })
-      );
+    const onPinned = ({ filename, pinned }) => {
+      setPinnedList((prev) => {
+        if (pinned) {
+          return prev.includes(filename) ? prev : [...prev, filename];
+        }
+        return prev.filter((f) => f !== filename);
+      });
     };
-    socket.on("document:updated", onUpdated);
-    return () => socket.off("document:updated", onUpdated);
+    socket.on("document:pinned", onPinned);
+    return () => socket.off("document:pinned", onPinned);
   }, [socket]);
 
-  const uploadFiles = async (files) => {
-    if (!files?.length) return;
-    setUploading(true);
-    try {
-      for (const file of files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        await api.post("/documents", fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      }
-      await load();
-    } catch (e) {
-      alert("Erreur upload : " + (e.response?.data?.message || e.message));
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
-  const removeDoc = async (doc) => {
-    if (!window.confirm(`Supprimer ${doc.name} ?`)) return;
-    try {
-      await api.delete(`/documents/${doc.id}`);
-      setDocs((prev) => prev.filter((d) => d.id !== doc.id));
-    } catch (e) {
-      alert("Erreur : " + (e.response?.data?.message || e.message));
-    }
-  };
-
+  // 📌 Toggle pin (admin)
   const togglePin = async (doc) => {
     try {
-      const { data } = await api.post(`/documents/${doc.id}/pin`);
-      setDocs((prev) =>
-        prev
-          .map((d) => (d.id === doc.id ? { ...d, pinned: data.pinned } : d))
-          .sort((a, b) => {
-            if (a.pinned !== b.pinned) return b.pinned - a.pinned;
-            return new Date(b.createdAt) - new Date(a.createdAt);
-          })
-      );
+      const { data } = await api.post("/documents/pin", {
+        filename: doc.filename,
+      });
+      setPinnedList((prev) => {
+        if (data.pinned) return [...prev, doc.filename];
+        return prev.filter((f) => f !== doc.filename);
+      });
     } catch (e) {
       alert("Erreur : " + (e.response?.data?.message || e.message));
     }
   };
 
-  const onDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    uploadFiles(e.dataTransfer.files);
-  };
+  // Fusionne manifest + état pinned + trie
+  const merged = docs
+    .map((d) => ({ ...d, pinned: pinnedList.includes(d.filename) }))
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return b.pinned - a.pinned;
+      return 0;
+    });
 
-  const filtered = docs.filter((d) =>
-    d.name.toLowerCase().includes(query.toLowerCase())
+  const filtered = merged.filter(
+    (d) =>
+      d.name.toLowerCase().includes(query.toLowerCase()) ||
+      d.filename.toLowerCase().includes(query.toLowerCase())
   );
-
-  const canDelete = (d) => user.role === "admin" || d.uploadedBy?.id === user.id;
 
   return (
     <div className="docs-page">
@@ -144,32 +105,19 @@ export default function Documents() {
             {docs.length} fichier{docs.length > 1 ? "s" : ""} disponible{docs.length > 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          className="btn-upload"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? "Envoi en cours…" : "+ Ajouter un fichier"}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => uploadFiles(e.target.files)}
-        />
       </div>
 
-      <div
-        className={`drop-zone ${dragOver ? "over" : ""}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-      >
-        <span className="drop-icon">📁</span>
-        <p>Glisse tes fichiers ici ou clique pour parcourir</p>
-      </div>
+      {/* Info admin : comment ajouter des fichiers */}
+      {user.role === "admin" && (
+        <div className="docs-admin-info">
+          <strong>📌 Ajouter un fichier</strong>
+          <ol>
+            <li>Place ton fichier dans <code>frontend/public/upload/</code></li>
+            <li>Ajoute une entrée dans <code>manifest.json</code></li>
+            <li><code>git push</code> → Vercel redéploie automatiquement</li>
+          </ol>
+        </div>
+      )}
 
       <div className="docs-toolbar">
         <input
@@ -184,17 +132,22 @@ export default function Documents() {
         <p className="docs-empty">Chargement…</p>
       ) : filtered.length === 0 ? (
         <p className="docs-empty">
-          {query ? "Aucun fichier ne correspond." : "Aucun document pour le moment."}
+          {query
+            ? "Aucun fichier ne correspond."
+            : "Aucun document disponible pour le moment."}
         </p>
       ) : (
         <div className="docs-grid">
           {filtered.map((d) => (
-            <div key={d.id} className={`doc-card ${d.pinned ? "pinned" : ""}`}>
+            <div
+              key={d.filename}
+              className={`doc-card ${d.pinned ? "pinned" : ""}`}
+            >
               {d.pinned && <span className="doc-pin-badge">📌</span>}
-              <div className="doc-icon">{icon(d.name)}</div>
+              <div className="doc-icon">{icon(d.filename)}</div>
               <div className="doc-body">
                 <a
-                  href={`${API_URL}${d.url}`}
+                  href={`/upload/${d.filename}`}
                   target="_blank"
                   rel="noreferrer"
                   className="doc-name"
@@ -202,16 +155,16 @@ export default function Documents() {
                 >
                   {d.name}
                 </a>
-                <div className="doc-meta">
-                  {formatSize(d.size)} · {formatDate(d.createdAt)}
-                </div>
-                <div className="doc-author">
-                  par <strong>{d.uploadedBy?.username || "?"}</strong>
-                </div>
+                {d.description && (
+                  <div className="doc-meta">{d.description}</div>
+                )}
+                {d.addedAt && (
+                  <div className="doc-author">Ajouté le {formatDate(d.addedAt)}</div>
+                )}
               </div>
 
-              <div className="doc-actions">
-                {user.role === "admin" && (
+              {user.role === "admin" && (
+                <div className="doc-actions">
                   <button
                     className={`doc-action-btn ${d.pinned ? "pin-active" : ""}`}
                     onClick={() => togglePin(d)}
@@ -219,17 +172,8 @@ export default function Documents() {
                   >
                     📌
                   </button>
-                )}
-                {canDelete(d) && (
-                  <button
-                    className="doc-action-btn danger"
-                    onClick={() => removeDoc(d)}
-                    title="Supprimer"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
