@@ -4,16 +4,13 @@ const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 const { Chess } = require("chess.js");
 
-const { connectDB, User, Message, Room, Document, BanList } = require("./config/db");
+const { connectDB, User, Message, Room, BanList, PinnedDoc } = require("./config/db");
 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG
@@ -71,60 +68,6 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 
 app.use(express.json({ limit: "1mb" }));
-
-// ═══════════════════════════════════════════════════════════════
-//  UPLOADS
-// ═══════════════════════════════════════════════════════════════
-const uploadDir = path.join(__dirname, "..", "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const ALLOWED_MIME = [
-  "image/jpeg", "image/png", "image/gif", "image/webp",
-  "application/pdf",
-  "text/plain", "text/markdown", "text/csv",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/zip",
-  "application/x-zip-compressed",
-];
-
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_, file, cb) => {
-    const safe = file.originalname
-      .replace(/[^a-zA-Z0-9._-]/g, "_")
-      .replace(/^\.+/, "")
-      .slice(0, 100);
-    cb(null, Date.now() + "-" + safe);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
-  fileFilter: (_, file, cb) => {
-    if (!ALLOWED_MIME.includes(file.mimetype)) {
-      return cb(new Error("Type de fichier non autorisé"));
-    }
-    cb(null, true);
-  },
-});
-
-app.use(
-  "/uploads",
-  express.static(uploadDir, {
-    setHeaders: (res, filepath) => {
-      if (filepath.endsWith(".html") || filepath.endsWith(".htm")) {
-        res.setHeader("Content-Type", "text/plain");
-      }
-      res.setHeader("X-Content-Type-Options", "nosniff");
-    },
-  })
-);
 
 // ═══════════════════════════════════════════════════════════════
 //  MIDDLEWARE AUTH
@@ -298,7 +241,6 @@ app.get("/api/messages/private/:id", protect, async (req, res) => {
   );
 });
 
-// 🗑️ SUPPRIMER UN MESSAGE (propriétaire ou admin)
 app.delete("/api/messages/:id", protect, async (req, res) => {
   try {
     const msg = await Message.findByPk(req.params.id);
@@ -316,7 +258,6 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 
     await msg.destroy();
 
-    // 📡 Broadcast temps réel
     if (roomId) {
       io.to(`r:${roomId}`).emit("message:deleted", { id: msgId, roomId });
     }
@@ -332,74 +273,40 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  DOCUMENTS
+//  DOCUMENTS — Manifest + Pin
 // ═══════════════════════════════════════════════════════════════
-app.get("/api/documents", protect, async (_, res) => {
-  res.json(
-    await Document.findAll({
-      include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
-      order: [
-        ["pinned", "DESC"],
-        ["createdAt", "DESC"],
-      ],
-    })
-  );
-});
 
-app.post("/api/documents", protect, (req, res) => {
-  upload.single("file")(req, res, async (err) => {
-    if (err) return res.status(400).json({ message: err.message });
-    if (!req.file) return res.status(400).json({ message: "Aucun fichier" });
-
-    try {
-      const doc = await Document.create({
-        name: req.file.originalname,
-        url: `/uploads/${req.file.filename}`,
-        size: req.file.size,
-        mimetype: req.file.mimetype,
-        uploadedById: req.user.id,
-      });
-      const full = await Document.findByPk(doc.id, {
-        include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
-      });
-      res.json(full);
-    } catch (e) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-});
-
-// 📌 Épingler / désépingler (admin uniquement)
-app.post("/api/documents/:id/pin", protect, adminOnly, async (req, res) => {
+// 📌 Liste des fichiers épinglés
+app.get("/api/documents/pinned", protect, async (_, res) => {
   try {
-    const doc = await Document.findByPk(req.params.id);
-    if (!doc) return res.status(404).json({ message: "Introuvable" });
-
-    doc.pinned = !doc.pinned;
-    await doc.save();
-
-    io.emit("document:updated", { id: doc.id, pinned: doc.pinned });
-    res.json(doc);
+    const pins = await PinnedDoc.findAll();
+    res.json(pins.map((p) => p.filename));
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
 });
 
-app.delete("/api/documents/:id", protect, async (req, res) => {
-  const d = await Document.findByPk(req.params.id);
-  if (!d) return res.status(404).json({ message: "Introuvable" });
-  if (req.user.role !== "admin" && d.uploadedById !== req.user.id)
-    return res.status(403).json({ message: "Non autorisé" });
-
+// 📌 Épingler / désépingler un fichier (admin)
+app.post("/api/documents/pin", protect, adminOnly, async (req, res) => {
   try {
-    const filePath = path.join(uploadDir, path.basename(d.url));
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  } catch (e) {
-    console.warn("[documents] fichier absent :", e.message);
-  }
+    const { filename } = req.body;
+    if (!filename || typeof filename !== "string")
+      return res.status(400).json({ message: "Nom de fichier requis" });
 
-  await d.destroy();
-  res.json({ ok: true });
+    const existing = await PinnedDoc.findOne({ where: { filename } });
+    if (existing) {
+      await existing.destroy();
+      io.emit("document:pinned", { filename, pinned: false });
+      return res.json({ ok: true, pinned: false });
+    }
+
+    await PinnedDoc.create({ filename });
+    io.emit("document:pinned", { filename, pinned: true });
+    res.json({ ok: true, pinned: true });
+  } catch (e) {
+    console.error("[documents pin]", e);
+    res.status(500).json({ message: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -427,11 +334,6 @@ app.get("/api/me/export", protect, async (req, res) => {
         { model: User, as: "receiver", attributes: ["id", "username"] },
       ],
       order: [["createdAt", "ASC"]],
-    });
-
-    const myDocuments = await Document.findAll({
-      where: { uploadedById: req.user.id },
-      attributes: ["id", "name", "url", "size", "mimetype", "createdAt"],
     });
 
     const myRooms = await Room.findAll({
@@ -464,10 +366,6 @@ app.get("/api/me/export", protect, async (req, res) => {
       private_messages: myPrivateMessages.map((m) => ({
         id: m.id, sender: m.sender?.username || "?", receiver: m.receiver?.username || "?",
         content: m.content, sent_at: m.createdAt,
-      })),
-      documents: myDocuments.map((d) => ({
-        id: d.id, name: d.name, url: d.url, size_bytes: d.size,
-        type: d.mimetype, uploaded_at: d.createdAt,
       })),
       rooms_created: myRooms.map((r) => ({
         id: r.id, name: r.name, description: r.description, created_at: r.createdAt,
@@ -542,7 +440,6 @@ app.put("/api/me/update", protect, async (req, res) => {
   }
 });
 
-// 🗑️ Suppression RGPD (sans ban)
 app.delete("/api/me/delete", protect, async (req, res) => {
   try {
     const { password, confirm } = req.body;
@@ -556,7 +453,6 @@ app.delete("/api/me/delete", protect, async (req, res) => {
     const ok = await bcrypt.compare(password, me.password);
     if (!ok) return res.status(400).json({ message: "Mot de passe incorrect" });
 
-    const email = me.email;
     const userId = me.id;
 
     await Message.update(
@@ -568,21 +464,13 @@ app.delete("/api/me/delete", protect, async (req, res) => {
       where: { [Op.or]: [{ senderId: userId }, { receiverId: userId }] },
     });
 
-    const myDocs = await Document.findAll({ where: { uploadedById: userId } });
-    for (const doc of myDocs) {
-      try {
-        const filePath = path.join(uploadDir, path.basename(doc.url));
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      } catch (e) {}
-    }
-    await Document.destroy({ where: { uploadedById: userId } });
-
     const sockets = await io.in(`u:${userId}`).fetchSockets();
     for (const s of sockets) {
       s.emit("user:deleted", { reason: "Compte supprimé (RGPD)" });
       s.disconnect(true);
     }
 
+    const email = me.email;
     await me.destroy();
     console.log(`🗑️ Compte supprimé (RGPD) : ${email}`);
 
@@ -871,11 +759,7 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  // ─────────────── CHAT ───────────────
-  socket.on("chat:join", ({ roomId }) => {
-    socket.join(`r:${roomId}`);
-    console.log(`📥 ${socket.user.username} join r:${roomId}`);
-  });
+  socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
 
   const onRoomMsg = async ({ roomId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
@@ -886,9 +770,7 @@ io.on("connection", (socket) => {
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
 
-    const msg = await Message.create({
-      senderId: socket.user.id, roomId, content, type: "text",
-    });
+    const msg = await Message.create({ senderId: socket.user.id, roomId, content, type: "text" });
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
     });
@@ -905,9 +787,7 @@ io.on("connection", (socket) => {
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
 
-    const msg = await Message.create({
-      senderId: socket.user.id, receiverId, content, type: "text",
-    });
+    const msg = await Message.create({ senderId: socket.user.id, receiverId, content, type: "text" });
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
     });
@@ -934,11 +814,10 @@ io.on("connection", (socket) => {
     if (socket.user.role !== "admin") return;
     if (!code || typeof code !== "string" || !code.trim()) return;
     if (code.length > 50000) return;
-    console.log(`🧩 Injection par ${socket.user.username}`);
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // ─────────────── UNO ───────────────
+  // UNO
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -1017,10 +896,8 @@ io.on("connection", (socket) => {
   socket.on("uno:play", ({ roomId, cardIndex, chosenColor }) => {
     const r = unoRooms.get(roomId);
     if (!r || r.status !== "playing") return;
-
     const me = r.players.find((p) => p.userId === socket.user.id);
     if (!me) return;
-
     if (r.players[r.currentTurn].userId !== socket.user.id)
       return socket.emit("chat:error", { message: "Pas ton tour" });
 
@@ -1099,7 +976,7 @@ io.on("connection", (socket) => {
     if (me) { me.calledUno = true; broadcastUno(r); }
   });
 
-  // ─────────────── CHESS ───────────────
+  // CHESS
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -1207,13 +1084,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log(`❌ Déconnecté: ${socket.user.username}`);
     User.update({ online: false }, { where: { id: socket.user.id } }).catch(() => {});
   });
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  ADMIN — GAMES
+//  ADMIN GAMES
 // ═══════════════════════════════════════════════════════════════
 app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   if (!unoRooms.has(req.params.roomId))
@@ -1266,9 +1142,6 @@ setInterval(() => {
   if (changedChess) io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
-// ═══════════════════════════════════════════════════════════════
-//  START
-// ═══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
 connectDB().then(() =>
   server.listen(PORT, () => console.log(`🚀 Backend prêt sur ${PORT}`))
