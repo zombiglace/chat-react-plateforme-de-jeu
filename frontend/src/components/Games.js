@@ -16,7 +16,7 @@ const TABS = [
     label: "Échecs",
     sub: "1 contre 1",
     icon: "♟️",
-    gradient: "linear-gradient(135deg, #1e293b, #475569)",
+    gradient: "linear-gradient(135deg, #475569, #1e293b)",
   },
   {
     id: "rank",
@@ -38,11 +38,13 @@ export default function Games() {
     api
       .get("/leaderboard")
       .then((r) => setRanks(r.data))
+      .catch(() => setRanks({ uno: [], chess: [] }))
       .finally(() => setLoadingRanks(false));
   }, [tab]);
 
   const unoTop = ranks.uno.filter((u) => u.unoWins > 0);
   const chessTop = ranks.chess.filter((u) => u.chessWins > 0);
+  const activeTab = TABS.find((t) => t.id === tab);
 
   return (
     <div className="games-page">
@@ -75,67 +77,91 @@ export default function Games() {
 
       {/* ═══ CONTENU ═══ */}
       <div className="games-content">
-        {tab === "uno" && <Uno />}
-        {tab === "chess" && <Chess />}
-        {tab === "rank" && (
-          loadingRanks ? (
-            <p className="games-empty">Chargement…</p>
-          ) : (
-            <div className="rank-wrap">
-              {/* Classement UNO */}
-              <div className="rank-col">
-                <div className="rank-col-head">
-                  <span className="rank-col-icon">🎴</span>
-                  <h3>UNO</h3>
-                </div>
-                {unoTop.length === 0 ? (
-                  <p className="games-empty">Aucune victoire pour l'instant.</p>
-                ) : (
-                  <ol className="rank-list">
-                    {unoTop.map((u, i) => (
-                      <li key={u.id} className={i < 3 ? `top-${i + 1}` : ""}>
-                        <span className={`rk rk-${i + 1}`}>
-                          {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
-                        </span>
-                        <span className="rk-name">{u.username}</span>
-                        <span className="rk-score">
-                          {u.unoWins}
-                          <small>victoires</small>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
+        {/* Titre dynamique */}
+        <div className="games-content-head">
+          <span className="games-content-icon">{activeTab.icon}</span>
+          <h2 className="games-content-title">{activeTab.label}</h2>
+        </div>
 
-              {/* Classement Échecs */}
-              <div className="rank-col">
-                <div className="rank-col-head">
-                  <span className="rank-col-icon">♟️</span>
-                  <h3>Échecs</h3>
+        <div className="games-content-body">
+          {tab === "uno" && <Uno />}
+          {tab === "chess" && <Chess />}
+
+          {tab === "rank" && (
+            <>
+              {loadingRanks ? (
+                <div className="games-loading">
+                  <div className="games-spinner"></div>
+                  <p>Chargement du classement…</p>
                 </div>
-                {chessTop.length === 0 ? (
-                  <p className="games-empty">Aucune victoire pour l'instant.</p>
-                ) : (
-                  <ol className="rank-list">
-                    {chessTop.map((u, i) => (
-                      <li key={u.id} className={i < 3 ? `top-${i + 1}` : ""}>
-                        <span className={`rk rk-${i + 1}`}>
-                          {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
-                        </span>
-                        <span className="rk-name">{u.username}</span>
-                        <span className="rk-score">
-                          {u.chessWins}
-                          <small>victoires</small>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            </div>
-          )
-        )}
+              ) : (
+                <div className="rank-wrap">
+                  {/* Classement UNO */}
+                  <div className="rank-col">
+                    <div className="rank-col-head">
+                      <span className="rank-col-icon">🎴</span>
+                      <h3>UNO</h3>
+                      <span className="rank-col-count">{unoTop.length}</span>
+                    </div>
+
+                    {unoTop.length === 0 ? (
+                      <div className="rank-empty">
+                        <span className="rank-empty-icon">🎴</span>
+                        <p>Aucune victoire pour l'instant</p>
+                      </div>
+                    ) : (
+                      <ol className="rank-list">
+                        {unoTop.map((u, i) => (
+                          <li key={u.id} className={i < 3 ? `top-${i + 1}` : ""}>
+                            <span className={`rk rk-${i + 1}`}>
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                            </span>
+                            <span className="rk-name">{u.username}</span>
+                            <span className="rk-score">
+                              {u.unoWins}
+                              <small>victoire{u.unoWins > 1 ? "s" : ""}</small>
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+
+                  {/* Classement Échecs */}
+                  <div className="rank-col">
+                    <div className="rank-col-head">
+                      <span className="rank-col-icon">♟️</span>
+                      <h3>Échecs</h3>
+                      <span className="rank-col-count">{chessTop.length}</span>
+                    </div>
+
+                    {chessTop.length === 0 ? (
+                      <div className="rank-empty">
+                        <span className="rank-empty-icon">♟️</span>
+                        <p>Aucune victoire pour l'instant</p>
+                      </div>
+                    ) : (
+                      <ol className="rank-list">
+                        {chessTop.map((u, i) => (
+                          <li key={u.id} className={i < 3 ? `top-${i + 1}` : ""}>
+                            <span className={`rk rk-${i + 1}`}>
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                            </span>
+                            <span className="rk-name">{u.username}</span>
+                            <span className="rk-score">
+                              {u.chessWins}
+                              <small>victoire{u.chessWins > 1 ? "s" : ""}</small>
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
