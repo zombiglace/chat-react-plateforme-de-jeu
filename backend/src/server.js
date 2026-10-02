@@ -4,13 +4,16 @@ const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 const { Chess } = require("chess.js");
 
-const { connectDB, User, Message, Room, BanList, PinnedDoc } = require("./config/db");
+const { connectDB, User, Message, Room, Document, BanList, PinnedDoc } = require("./config/db");
 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG
@@ -68,6 +71,60 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 
 app.use(express.json({ limit: "1mb" }));
+
+// ═══════════════════════════════════════════════════════════════
+//  UPLOADS
+// ═══════════════════════════════════════════════════════════════
+const uploadDir = path.join(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const ALLOWED_MIME = [
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "application/pdf",
+  "text/plain", "text/markdown", "text/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip",
+  "application/x-zip-compressed",
+];
+
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, uploadDir),
+  filename: (_, file, cb) => {
+    const safe = file.originalname
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/^\.+/, "")
+      .slice(0, 100);
+    cb(null, Date.now() + "-" + safe);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  fileFilter: (_, file, cb) => {
+    if (!ALLOWED_MIME.includes(file.mimetype)) {
+      return cb(new Error("Type de fichier non autorisé"));
+    }
+    cb(null, true);
+  },
+});
+
+app.use(
+  "/uploads",
+  express.static(uploadDir, {
+    setHeaders: (res, filepath) => {
+      if (filepath.endsWith(".html") || filepath.endsWith(".htm")) {
+        res.setHeader("Content-Type", "text/plain");
+      }
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    },
+  })
+);
 
 // ═══════════════════════════════════════════════════════════════
 //  MIDDLEWARE AUTH
@@ -241,6 +298,7 @@ app.get("/api/messages/private/:id", protect, async (req, res) => {
   );
 });
 
+// 🗑️ SUPPRIMER UN MESSAGE (propriétaire ou admin)
 app.delete("/api/messages/:id", protect, async (req, res) => {
   try {
     const msg = await Message.findByPk(req.params.id);
@@ -273,40 +331,70 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  DOCUMENTS — Manifest + Pin
+//  DOCUMENTS (upload + pin)
 // ═══════════════════════════════════════════════════════════════
+app.get("/api/documents", protect, async (_, res) => {
+  res.json(
+    await Document.findAll({
+      include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
+      order: [["pinned", "DESC"], ["createdAt", "DESC"]],
+    })
+  );
+});
 
-// 📌 Liste des fichiers épinglés
-app.get("/api/documents/pinned", protect, async (_, res) => {
+app.post("/api/documents", protect, (req, res) => {
+  upload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: "Aucun fichier" });
+
+    try {
+      const doc = await Document.create({
+        name: req.file.originalname,
+        url: `/uploads/${req.file.filename}`,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        uploadedById: req.user.id,
+      });
+      const full = await Document.findByPk(doc.id, {
+        include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
+      });
+      res.json(full);
+    } catch (e) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+});
+
+// 📌 Épingler (admin)
+app.post("/api/documents/:id/pin", protect, adminOnly, async (req, res) => {
   try {
-    const pins = await PinnedDoc.findAll();
-    res.json(pins.map((p) => p.filename));
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Introuvable" });
+
+    doc.pinned = !doc.pinned;
+    await doc.save();
+    io.emit("document:updated", { id: doc.id, pinned: doc.pinned });
+    res.json(doc);
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
 });
 
-// 📌 Épingler / désépingler un fichier (admin)
-app.post("/api/documents/pin", protect, adminOnly, async (req, res) => {
+app.delete("/api/documents/:id", protect, async (req, res) => {
+  const d = await Document.findByPk(req.params.id);
+  if (!d) return res.status(404).json({ message: "Introuvable" });
+  if (req.user.role !== "admin" && d.uploadedById !== req.user.id)
+    return res.status(403).json({ message: "Non autorisé" });
+
   try {
-    const { filename } = req.body;
-    if (!filename || typeof filename !== "string")
-      return res.status(400).json({ message: "Nom de fichier requis" });
-
-    const existing = await PinnedDoc.findOne({ where: { filename } });
-    if (existing) {
-      await existing.destroy();
-      io.emit("document:pinned", { filename, pinned: false });
-      return res.json({ ok: true, pinned: false });
-    }
-
-    await PinnedDoc.create({ filename });
-    io.emit("document:pinned", { filename, pinned: true });
-    res.json({ ok: true, pinned: true });
+    const filePath = path.join(uploadDir, path.basename(d.url));
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } catch (e) {
-    console.error("[documents pin]", e);
-    res.status(500).json({ message: e.message });
+    console.warn("[documents] fichier absent :", e.message);
   }
+
+  await d.destroy();
+  res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -463,6 +551,15 @@ app.delete("/api/me/delete", protect, async (req, res) => {
     await Message.destroy({
       where: { [Op.or]: [{ senderId: userId }, { receiverId: userId }] },
     });
+
+    const myDocs = await Document.findAll({ where: { uploadedById: userId } });
+    for (const doc of myDocs) {
+      try {
+        const filePath = path.join(uploadDir, path.basename(doc.url));
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {}
+    }
+    await Document.destroy({ where: { uploadedById: userId } });
 
     const sockets = await io.in(`u:${userId}`).fetchSockets();
     for (const s of sockets) {
@@ -737,11 +834,31 @@ async function awardChessWin(username) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  HELPER — Émission liste en ligne
+// ═══════════════════════════════════════════════════════════════
+async function emitOnlineUsers() {
+  try {
+    const online = await User.findAll({
+      where: { online: true },
+      attributes: ["id", "username"],
+    });
+    io.emit("users:online", online.map((u) => ({ id: u.id, username: u.username })));
+  } catch (e) {
+    console.error("[emitOnlineUsers]", e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  SOCKET CONNECTION
 // ═══════════════════════════════════════════════════════════════
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log(`🔌 Connecté: ${socket.user.username} (id ${socket.user.id})`);
   socket.join(`u:${socket.user.id}`);
+
+  // ✅ Marque online en DB
+  await User.update({ online: true }, { where: { id: socket.user.id } });
+  // ✅ Broadcast immédiat à tous
+  await emitOnlineUsers();
 
   async function checkMod() {
     const u = await User.findByPk(socket.user.id);
@@ -759,7 +876,10 @@ io.on("connection", (socket) => {
     return { ok: true };
   }
 
-  socket.on("chat:join", ({ roomId }) => socket.join(`r:${roomId}`));
+  // ─── CHAT ───
+  socket.on("chat:join", ({ roomId }) => {
+    socket.join(`r:${roomId}`);
+  });
 
   const onRoomMsg = async ({ roomId, content }) => {
     if (typeof content !== "string" || content.trim().length === 0)
@@ -817,7 +937,7 @@ io.on("connection", (socket) => {
     io.emit("chat:inject", { code, by: socket.user.username });
   });
 
-  // UNO
+  // ─── UNO ───
   socket.on("uno:list", (cb) => {
     const list = [...unoRooms.values()].map(publicRoom);
     if (typeof cb === "function") cb(list);
@@ -926,7 +1046,7 @@ io.on("connection", (socket) => {
     };
 
     if (card.value === "reverse") {
-      if (n === 2) { /* rejoue */ } else { r.direction *= -1; next(); }
+      if (n === 2) {} else { r.direction *= -1; next(); }
     } else if (card.value === "skip") next(2);
     else if (card.value === "draw2") {
       r.pendingDraw = (r.pendingDraw || 0) + 2; r.pendingType = "draw2"; next();
@@ -976,7 +1096,7 @@ io.on("connection", (socket) => {
     if (me) { me.calledUno = true; broadcastUno(r); }
   });
 
-  // CHESS
+  // ─── CHESS ───
   socket.on("chess:list", (cb) => {
     const list = [...chessGames.values()].map(publicChess);
     if (typeof cb === "function") cb(list);
@@ -1083,13 +1203,16 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
-    User.update({ online: false }, { where: { id: socket.user.id } }).catch(() => {});
+  // ─── DISCONNECT ───
+  socket.on("disconnect", async () => {
+    console.log(`❌ Déconnecté: ${socket.user.username}`);
+    await User.update({ online: false }, { where: { id: socket.user.id } });
+    await emitOnlineUsers();
   });
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  ADMIN GAMES
+//  ADMIN — GAMES
 // ═══════════════════════════════════════════════════════════════
 app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   if (!unoRooms.has(req.params.roomId))
