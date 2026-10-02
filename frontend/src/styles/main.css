@@ -3600,3 +3600,307 @@ a:hover {
     font-size: 0.9rem;
   }
 }
+/* ═══════════════════════════════════════════════════════════════
+   PAGES LÉGALES — Mentions, Confidentialité, Accessibilité, CGU
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Conteneur principal */
+.legal-scene {
+  min-height: 100vh;
+  background: var(--bg);
+  overflow-y: auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Contenu central */
+.legal-content {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 2rem;
+  color: var(--text-2);
+  font-size: 0.95rem;
+  line-height: 1.75;
+  flex: 1;
+  width: 100%;
+}
+
+/* Bouton retour */
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 2rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  transition: background var(--transition), transform var(--transition), border-color var(--transition);
+  text-decoration: none;
+}
+
+.legal-back:hover {
+  background: var(--bg-3);
+  border-color: var(--primary);
+  transform: translateX(-3px);
+  text-decoration: none;
+}
+
+/* Titre principal */
+.legal-content h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+/* Date de mise à jour */
+.legal-updated {
+  color: var(--text-4);
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-2);
+}
+
+/* Intro encadrée */
+.legal-intro {
+  background: var(--bg-2);
+  padding: 1.25rem 1.5rem;
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  margin-bottom: 2rem;
+  font-size: 0.92rem;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+/* Sections */
+.legal-content section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #1a2333;
+}
+
+.legal-content section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Sous-titres */
+.legal-content h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #60a5fa;
+  margin-bottom: 1rem;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legal-content h2::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1rem;
+  background: var(--primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Paragraphes */
+.legal-content p {
+  margin-bottom: 0.9rem;
+  color: var(--text-2);
+}
+
+/* Listes */
+.legal-content ul {
+  padding-left: 0;
+  margin-bottom: 1rem;
+  list-style: none;
+}
+
+.legal-content ul li {
+  margin-bottom: 0.6rem;
+  padding-left: 1.5rem;
+  position: relative;
+  color: var(--text-2);
+}
+
+.legal-content ul li::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.legal-content ul li strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Listes imbriquées */
+.legal-content ul ul {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.legal-content ul ul li::before {
+  content: "–";
+  color: var(--text-4);
+}
+
+/* Gras */
+.legal-content strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Liens */
+.legal-content a {
+  color: var(--primary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.legal-content a:hover {
+  color: #60a5fa;
+  border-bottom-color: currentColor;
+  text-decoration: none;
+}
+
+/* Code inline */
+.legal-content code {
+  background: var(--bg-3);
+  color: #a5f3fc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.85em;
+}
+
+/* Bloc info spécial (dans les pages légales) */
+.legal-content .info {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  font-size: 0.88rem;
+}
+
+.legal-content .info strong {
+  color: var(--text);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* Footer des pages légales */
+.legal-footer {
+  border-top: 1px solid var(--border-2);
+  padding: 1.5rem 2rem;
+  text-align: center;
+  background: var(--bg);
+  margin-top: auto;
+}
+
+.legal-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.legal-footer-links a {
+  color: var(--text-3);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.legal-footer-links a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.legal-footer-links span {
+  color: var(--text-5);
+}
+
+.legal-footer-copy {
+  font-size: 0.75rem;
+  color: var(--text-5);
+  letter-spacing: 0.3px;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .legal-content {
+    padding: 1.5rem 1.25rem 2rem;
+  }
+
+  .legal-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .legal-content h2 {
+    font-size: 1.05rem;
+  }
+
+  .legal-content section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+  }
+
+  .legal-intro {
+    padding: 1rem 1.25rem;
+    font-size: 0.88rem;
+  }
+
+  .legal-footer {
+    padding: 1.25rem 1rem;
+  }
+
+  .legal-footer-links {
+    font-size: 0.72rem;
+    gap: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .legal-content {
+    padding: 1rem 0.85rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .legal-content h1 {
+    font-size: 1.3rem;
+  }
+
+  .legal-content h2 {
+    font-size: 1rem;
+  }
+
+  .legal-back {
+    margin-bottom: 1.25rem;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.8rem;
+  }
+
+  .legal-content ul li {
+    padding-left: 1.25rem;
+  }
+}
