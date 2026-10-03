@@ -33,7 +33,11 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ FATAL: DATABASE_URL manquant");
   process.exit(1);
 }
-if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+if (
+  !process.env.SMTP_HOST ||
+  !process.env.SMTP_USER ||
+  !process.env.SMTP_PASS
+) {
   console.error(
     "❌ FATAL: Config SMTP incomplète (SMTP_HOST/SMTP_USER/SMTP_PASS)"
   );
@@ -106,8 +110,9 @@ app.use(express.json({ limit: "1mb" }));
 
 // ═══════════════════════════════════════════════════════════════
 //  UPLOADS
+//  __dirname = backend/src → "..", "uploads" = backend/uploads
 // ═══════════════════════════════════════════════════════════════
-const uploadDir = path.join(__dirname, "..", "..", "uploads");
+const uploadDir = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const ALLOWED_MIME = [
@@ -192,7 +197,7 @@ const adminOnly = (req, res, next) =>
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH — UNIQUEMENT via routes/auth.routes.js
+//  AUTH — via routes/auth.routes.js
 // ═══════════════════════════════════════════════════════════════
 app.use("/api/auth", require("./routes/auth.routes"));
 
@@ -449,7 +454,10 @@ app.get("/api/me/export", protect, async (req, res) => {
         description: r.description,
         created_at: r.createdAt,
       })),
-      ban_history: myBans.map((b) => ({ reason: b.reason, date: b.createdAt })),
+      ban_history: myBans.map((b) => ({
+        reason: b.reason,
+        date: b.createdAt,
+      })),
     };
 
     res.setHeader(
@@ -527,7 +535,12 @@ app.put("/api/me/update", protect, async (req, res) => {
     await me.save();
     res.json({
       ok: true,
-      user: { id: me.id, username: me.username, email: me.email, role: me.role },
+      user: {
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        role: me.role,
+      },
     });
   } catch (e) {
     console.error("[RGPD update]", e);
@@ -1158,8 +1171,7 @@ io.on("connection", async (socket) => {
     };
 
     if (card.value === "reverse") {
-      if (n === 2) {
-      } else {
+      if (n !== 2) {
         r.direction *= -1;
         next();
       }
