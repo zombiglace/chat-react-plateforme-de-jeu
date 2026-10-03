@@ -1,20 +1,11 @@
-const nodemailer = require("nodemailer");
-
 // ═══════════════════════════════════════════════════════════════
-//  TRANSPORTER SMTP
+//  RESEND — Envoi d'emails via HTTP (pas de SMTP bloqué)
+//  Doc : https://resend.com/docs/api-reference/emails/send-email
 // ═══════════════════════════════════════════════════════════════
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: Number(process.env.SMTP_PORT) === 465,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM =
-  process.env.SMTP_FROM || `"Chat NSI" <${process.env.SMTP_USER}>`;
+  process.env.EMAIL_FROM || "Chat NSI <onboarding@resend.dev>";
 
 // ═══════════════════════════════════════════════════════════════
 //  TEMPLATE HTML
@@ -80,22 +71,41 @@ function buildVerificationEmail({ username, verifyUrl }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ENVOI
+//  ENVOI VIA API RESEND
 // ═══════════════════════════════════════════════════════════════
 async function sendVerificationEmail({ to, username, token }) {
+  if (!RESEND_API_KEY) {
+    throw new Error(
+      "RESEND_API_KEY manquante — configure-la dans les variables d'environnement"
+    );
+  }
+
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
 
-  const info = await transporter.sendMail({
-    from: FROM,
-    to,
-    subject: "Confirme ton inscription à Chat NSI TERM",
-    html: buildVerificationEmail({ username, verifyUrl }),
-    text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: FROM,
+      to: [to],
+      subject: "Confirme ton inscription à Chat NSI TERM",
+      html: buildVerificationEmail({ username, verifyUrl }),
+      text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
+    }),
   });
 
-  console.log(`📧 Email envoyé à ${to} (id: ${info.messageId})`);
-  return info;
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Resend API error (${res.status}): ${errorBody}`);
+  }
+
+  const data = await res.json();
+  console.log(`📧 Email envoyé à ${to} (id: ${data.id})`);
+  return data;
 }
 
 module.exports = { sendVerificationEmail };
