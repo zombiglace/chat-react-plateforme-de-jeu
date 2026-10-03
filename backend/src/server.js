@@ -13,7 +13,15 @@ const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 const { Chess } = require("chess.js");
 
-const { connectDB, User, Message, Room, Document, BanList, PinnedDoc } = require("./config/db");
+const {
+  connectDB,
+  User,
+  Message,
+  Room,
+  Document,
+  BanList,
+  PinnedDoc,
+} = require("./config/db");
 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG
@@ -148,7 +156,9 @@ async function protect(req, res, next) {
 }
 
 const adminOnly = (req, res, next) =>
-  req.user?.role === "admin" ? next() : res.status(403).json({ message: "Admin requis" });
+  req.user?.role === "admin"
+    ? next()
+    : res.status(403).json({ message: "Admin requis" });
 
 // ═══════════════════════════════════════════════════════════════
 //  HEALTH
@@ -156,76 +166,9 @@ const adminOnly = (req, res, next) =>
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH
+//  AUTH — externalisé dans ./routes/auth.js
 // ═══════════════════════════════════════════════════════════════
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password)
-      return res.status(400).json({ message: "Champs manquants" });
-
-    if (typeof username !== "string" || username.length < 3 || username.length > 30)
-      return res.status(400).json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
-
-    if (typeof email !== "string" || email.length > 100)
-      return res.status(400).json({ message: "Email invalide" });
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
-      return res.status(400).json({ message: "Format d'email invalide" });
-
-    if (!ALLOWED_EMAIL.test(cleanEmail))
-      return res.status(400).json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
-
-    if (typeof password !== "string" || password.length < 6)
-      return res.status(400).json({ message: "Le mot de passe doit faire au moins 6 caractères" });
-
-    if (await User.findOne({ where: { email: cleanEmail } }))
-      return res.status(400).json({ message: "Email déjà utilisé" });
-    if (await User.findOne({ where: { username } }))
-      return res.status(400).json({ message: "Pseudo déjà utilisé" });
-    if (await BanList.findOne({ where: { email: cleanEmail } }))
-      return res.status(403).json({ message: "🚫 Banni" });
-
-    const hash = await bcrypt.hash(password, 10);
-    const count = await User.count();
-    const role = count === 0 ? "admin" : "membre";
-    const user = await User.create({ username, email: cleanEmail, password: hash, role });
-
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: user.id, username, email: cleanEmail, role } });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-});
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ message: "Champs manquants" });
-
-    const cleanEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ where: { email: cleanEmail } });
-    if (!user) return res.status(400).json({ message: "Identifiants invalides" });
-
-    if (user.banned)
-      return res.status(403).json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
-
-    if (!(await bcrypt.compare(password, user.password)))
-      return res.status(400).json({ message: "Identifiants invalides" });
-
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    res.json({
-      token,
-      user: { id: user.id, username: user.username, email: user.email, role: user.role },
-    });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-});
+app.use("/api/auth", require("./routes/auth"));
 
 // ═══════════════════════════════════════════════════════════════
 //  USERS
@@ -264,7 +207,9 @@ app.get("/api/rooms", protect, async (_, res) => {
 app.post("/api/rooms", protect, async (req, res) => {
   if (!req.body.name || typeof req.body.name !== "string")
     return res.status(400).json({ message: "Nom requis" });
-  res.json(await Room.create({ name: req.body.name, createdById: req.user.id }));
+  res.json(
+    await Room.create({ name: req.body.name, createdById: req.user.id })
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -308,7 +253,9 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
     const isAdmin = req.user.role === "admin";
 
     if (!isOwner && !isAdmin)
-      return res.status(403).json({ message: "Tu ne peux supprimer que tes messages" });
+      return res
+        .status(403)
+        .json({ message: "Tu ne peux supprimer que tes messages" });
 
     const msgId = msg.id;
     const roomId = msg.roomId;
@@ -402,7 +349,9 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 app.get("/api/me/export", protect, async (req, res) => {
   try {
-    const me = await User.findByPk(req.user.id, { attributes: { exclude: ["password"] } });
+    const me = await User.findByPk(req.user.id, {
+      attributes: { exclude: ["password"] },
+    });
 
     const myMessages = await Message.findAll({
       where: { senderId: req.user.id, roomId: { [Op.ne]: null } },
@@ -442,21 +391,38 @@ app.get("/api/me/export", protect, async (req, res) => {
         version: "1.0",
       },
       account: {
-        id: me.id, username: me.username, email: me.email, role: me.role,
-        created_at: me.createdAt, updated_at: me.updatedAt,
-        uno_wins: me.unoWins, chess_wins: me.chessWins,
-        muted: me.muted, muted_reason: me.mutedReason || null, muted_until: me.mutedUntil || null,
-        banned: me.banned, banned_reason: me.bannedReason || null,
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        role: me.role,
+        created_at: me.createdAt,
+        updated_at: me.updatedAt,
+        uno_wins: me.unoWins,
+        chess_wins: me.chessWins,
+        muted: me.muted,
+        muted_reason: me.mutedReason || null,
+        muted_until: me.mutedUntil || null,
+        banned: me.banned,
+        banned_reason: me.bannedReason || null,
       },
       public_messages: myMessages.map((m) => ({
-        id: m.id, room_id: m.roomId, content: m.content, sent_at: m.createdAt,
+        id: m.id,
+        room_id: m.roomId,
+        content: m.content,
+        sent_at: m.createdAt,
       })),
       private_messages: myPrivateMessages.map((m) => ({
-        id: m.id, sender: m.sender?.username || "?", receiver: m.receiver?.username || "?",
-        content: m.content, sent_at: m.createdAt,
+        id: m.id,
+        sender: m.sender?.username || "?",
+        receiver: m.receiver?.username || "?",
+        content: m.content,
+        sent_at: m.createdAt,
       })),
       rooms_created: myRooms.map((r) => ({
-        id: r.id, name: r.name, description: r.description, created_at: r.createdAt,
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        created_at: r.createdAt,
       })),
       ban_history: myBans.map((b) => ({ reason: b.reason, date: b.createdAt })),
     };
@@ -483,18 +449,24 @@ app.put("/api/me/update", protect, async (req, res) => {
     const wantsEmailChange = email && email !== me.email;
     const wantsUsernameChange = username && username !== me.username;
 
-    if ((wantsPasswordChange || wantsEmailChange || wantsUsernameChange) && !currentPassword) {
+    if (
+      (wantsPasswordChange || wantsEmailChange || wantsUsernameChange) &&
+      !currentPassword
+    ) {
       return res.status(400).json({ message: "Mot de passe actuel requis" });
     }
 
     if (currentPassword) {
       const ok = await bcrypt.compare(currentPassword, me.password);
-      if (!ok) return res.status(400).json({ message: "Mot de passe actuel incorrect" });
+      if (!ok)
+        return res.status(400).json({ message: "Mot de passe actuel incorrect" });
     }
 
     if (wantsUsernameChange) {
       if (username.length < 3 || username.length > 30)
-        return res.status(400).json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
+        return res
+          .status(400)
+          .json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
       const exists = await User.findOne({ where: { username } });
       if (exists) return res.status(400).json({ message: "Ce pseudo est déjà pris" });
       me.username = username;
@@ -505,7 +477,9 @@ app.put("/api/me/update", protect, async (req, res) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
         return res.status(400).json({ message: "Format d'email invalide" });
       if (!ALLOWED_EMAIL.test(cleanEmail))
-        return res.status(400).json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
+        return res
+          .status(400)
+          .json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
       const exists = await User.findOne({ where: { email: cleanEmail } });
       if (exists) return res.status(400).json({ message: "Cet email est déjà utilisé" });
       me.email = cleanEmail;
@@ -513,7 +487,9 @@ app.put("/api/me/update", protect, async (req, res) => {
 
     if (wantsPasswordChange) {
       if (newPassword.length < 6)
-        return res.status(400).json({ message: "Le mot de passe doit faire au moins 6 caractères" });
+        return res
+          .status(400)
+          .json({ message: "Le mot de passe doit faire au moins 6 caractères" });
       me.password = await bcrypt.hash(newPassword, 10);
     }
 
@@ -596,7 +572,8 @@ app.put("/api/admin/users/:id/role", protect, adminOnly, async (req, res) => {
 app.post("/api/admin/mute/:id", protect, adminOnly, async (req, res) => {
   const u = await User.findByPk(req.params.id);
   if (!u) return res.status(404).json({ message: "Introuvable" });
-  if (u.role === "admin") return res.status(400).json({ message: "Impossible sur admin" });
+  if (u.role === "admin")
+    return res.status(400).json({ message: "Impossible sur admin" });
 
   u.muted = true;
   u.mutedReason = req.body.reason || "";
@@ -618,7 +595,8 @@ app.post("/api/admin/unmute/:id", protect, adminOnly, async (req, res) => {
 app.post("/api/admin/ban/:id", protect, adminOnly, async (req, res) => {
   const u = await User.findByPk(req.params.id);
   if (!u) return res.status(404).json({ message: "Introuvable" });
-  if (u.role === "admin") return res.status(400).json({ message: "Impossible sur admin" });
+  if (u.role === "admin")
+    return res.status(400).json({ message: "Impossible sur admin" });
 
   u.banned = true;
   u.bannedReason = req.body.reason || "";
@@ -646,9 +624,13 @@ app.post("/api/admin/unban/:id", protect, adminOnly, async (req, res) => {
 app.delete("/api/admin/users/:id", protect, adminOnly, async (req, res) => {
   const u = await User.findByPk(req.params.id);
   if (!u) return res.status(404).json({ message: "Introuvable" });
-  if (u.role === "admin") return res.status(400).json({ message: "Impossible sur admin" });
+  if (u.role === "admin")
+    return res.status(400).json({ message: "Impossible sur admin" });
 
-  await BanList.create({ email: u.email, reason: `Supprimé par ${req.user.username}` });
+  await BanList.create({
+    email: u.email,
+    reason: `Supprimé par ${req.user.username}`,
+  });
 
   const sockets = await io.in(`u:${u.id}`).fetchSockets();
   for (const s of sockets) {
@@ -692,21 +674,26 @@ app.get("/api/admin/conversations", protect, adminOnly, async (_, res) => {
   res.json(list.filter((x) => x.userA && x.userB));
 });
 
-app.get("/api/admin/messages/:userA/:userB", protect, adminOnly, async (req, res) => {
-  const { userA, userB } = req.params;
-  res.json(
-    await Message.findAll({
-      where: {
-        [Op.or]: [
-          { senderId: userA, receiverId: userB },
-          { senderId: userB, receiverId: userA },
-        ],
-      },
-      include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
-      order: [["createdAt", "ASC"]],
-    })
-  );
-});
+app.get(
+  "/api/admin/messages/:userA/:userB",
+  protect,
+  adminOnly,
+  async (req, res) => {
+    const { userA, userB } = req.params;
+    res.json(
+      await Message.findAll({
+        where: {
+          [Op.or]: [
+            { senderId: userA, receiverId: userB },
+            { senderId: userB, receiverId: userA },
+          ],
+        },
+        include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
+        order: [["createdAt", "ASC"]],
+      })
+    );
+  }
+);
 
 // ═══════════════════════════════════════════════════════════════
 //  SOCKET AUTH
@@ -717,7 +704,9 @@ io.use(async (socket, next) => {
     if (!token) return next(new Error("Token manquant"));
 
     const d = jwt.verify(token, process.env.JWT_SECRET);
-    const u = await User.findByPk(d.id, { attributes: { exclude: ["password"] } });
+    const u = await User.findByPk(d.id, {
+      attributes: { exclude: ["password"] },
+    });
     if (!u) return next(new Error("Introuvable"));
     if (u.banned) return next(new Error("Banni"));
 
@@ -740,23 +729,34 @@ function buildDeck() {
   for (const c of COLORS) {
     d.push({ color: c, value: "0" });
     for (let i = 1; i <= 9; i++) {
-      d.push({ color: c, value: String(i) }, { color: c, value: String(i) });
+      d.push(
+        { color: c, value: String(i) },
+        { color: c, value: String(i) }
+      );
     }
     for (const v of ["skip", "reverse", "draw2"]) {
       d.push({ color: c, value: v }, { color: c, value: v });
     }
   }
   for (let i = 0; i < 4; i++) {
-    d.push({ color: "wild", value: "wild" }, { color: "wild", value: "wild4" });
+    d.push(
+      { color: "wild", value: "wild" },
+      { color: "wild", value: "wild4" }
+    );
   }
   return d.sort(() => Math.random() - 0.5);
 }
 
 function publicRoom(r) {
   return {
-    id: r.id, name: r.name, hostId: r.hostId, status: r.status,
+    id: r.id,
+    name: r.name,
+    hostId: r.hostId,
+    status: r.status,
     players: r.players.map((p) => ({
-      userId: p.userId, username: p.username, cards: p.hand.length,
+      userId: p.userId,
+      username: p.username,
+      cards: p.hand.length,
     })),
     maxPlayers: 6,
   };
@@ -765,17 +765,25 @@ function publicRoom(r) {
 function publicState(r, uid) {
   const me = r.players.find((p) => p.userId === uid);
   return {
-    id: r.id, name: r.name, status: r.status, hostId: r.hostId,
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    hostId: r.hostId,
     players: r.players.map((p) => ({
-      userId: p.userId, username: p.username, cards: p.hand.length, calledUno: p.calledUno,
+      userId: p.userId,
+      username: p.username,
+      cards: p.hand.length,
+      calledUno: p.calledUno,
     })),
     topCard: r.discard[r.discard.length - 1] || null,
     currentColor: r.currentColor,
     currentTurn: r.players[r.currentTurn]?.userId ?? null,
-    direction: r.direction, deckCount: r.deck.length,
+    direction: r.direction,
+    deckCount: r.deck.length,
     myHand: me ? me.hand.map((c, i) => ({ ...c, index: i })) : [],
     winner: r.winner || null,
-    pendingDraw: r.pendingDraw || 0, pendingType: r.pendingType || null,
+    pendingDraw: r.pendingDraw || 0,
+    pendingType: r.pendingType || null,
   };
 }
 
@@ -798,8 +806,13 @@ function drawCard(r) {
 async function awardUnoWin(username) {
   try {
     const u = await User.findOne({ where: { username } });
-    if (u) { u.unoWins = (u.unoWins || 0) + 1; await u.save(); }
-  } catch (e) { console.error("[awardUnoWin]", e); }
+    if (u) {
+      u.unoWins = (u.unoWins || 0) + 1;
+      await u.save();
+    }
+  } catch (e) {
+    console.error("[awardUnoWin]", e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -810,11 +823,15 @@ let nextChessId = 1;
 
 function publicChess(g) {
   return {
-    id: g.id, name: g.name, status: g.status,
+    id: g.id,
+    name: g.name,
+    status: g.status,
     white: g.white ? { id: g.white.id, username: g.white.username } : null,
     black: g.black ? { id: g.black.id, username: g.black.username } : null,
-    fen: g.game.fen(), turn: g.game.turn(),
-    winner: g.winner, lastMove: g.lastMove,
+    fen: g.game.fen(),
+    turn: g.game.turn(),
+    winner: g.winner,
+    lastMove: g.lastMove,
   };
 }
 
@@ -829,8 +846,13 @@ async function awardChessWin(username) {
   if (username === "Égalité") return;
   try {
     const u = await User.findOne({ where: { username } });
-    if (u) { u.chessWins = (u.chessWins || 0) + 1; await u.save(); }
-  } catch (e) { console.error("[awardChessWin]", e); }
+    if (u) {
+      u.chessWins = (u.chessWins || 0) + 1;
+      await u.save();
+    }
+  } catch (e) {
+    console.error("[awardChessWin]", e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -842,7 +864,10 @@ async function emitOnlineUsers() {
       where: { online: true },
       attributes: ["id", "username"],
     });
-    io.emit("users:online", online.map((u) => ({ id: u.id, username: u.username })));
+    io.emit(
+      "users:online",
+      online.map((u) => ({ id: u.id, username: u.username }))
+    );
   } catch (e) {
     console.error("[emitOnlineUsers]", e);
   }
@@ -855,9 +880,7 @@ io.on("connection", async (socket) => {
   console.log(`🔌 Connecté: ${socket.user.username} (id ${socket.user.id})`);
   socket.join(`u:${socket.user.id}`);
 
-  // ✅ Marque online en DB
   await User.update({ online: true }, { where: { id: socket.user.id } });
-  // ✅ Broadcast immédiat à tous
   await emitOnlineUsers();
 
   async function checkMod() {
@@ -865,7 +888,10 @@ io.on("connection", async (socket) => {
     if (u.banned) return { ok: false, message: "🚫 Banni" };
     if (u.muted) {
       if (u.mutedUntil && new Date(u.mutedUntil) < new Date()) {
-        await User.update({ muted: false, mutedUntil: null }, { where: { id: u.id } });
+        await User.update(
+          { muted: false, mutedUntil: null },
+          { where: { id: u.id } }
+        );
         return { ok: true };
       }
       const until = u.mutedUntil
@@ -890,7 +916,12 @@ io.on("connection", async (socket) => {
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
 
-    const msg = await Message.create({ senderId: socket.user.id, roomId, content, type: "text" });
+    const msg = await Message.create({
+      senderId: socket.user.id,
+      roomId,
+      content,
+      type: "text",
+    });
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
     });
@@ -907,7 +938,12 @@ io.on("connection", async (socket) => {
     const c = await checkMod();
     if (!c.ok) return socket.emit("chat:error", { message: c.message });
 
-    const msg = await Message.create({ senderId: socket.user.id, receiverId, content, type: "text" });
+    const msg = await Message.create({
+      senderId: socket.user.id,
+      receiverId,
+      content,
+      type: "text",
+    });
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
     });
@@ -919,14 +955,18 @@ io.on("connection", async (socket) => {
   socket.on("chat:typing", ({ roomId, isTyping }) => {
     if (!roomId) return;
     socket.to(`r:${roomId}`).emit("chat:typing", {
-      userId: socket.user.id, username: socket.user.username, isTyping: !!isTyping,
+      userId: socket.user.id,
+      username: socket.user.username,
+      isTyping: !!isTyping,
     });
   });
 
   socket.on("chat:typing:private", ({ receiverId, isTyping }) => {
     if (!receiverId) return;
     io.to(`u:${receiverId}`).emit("chat:typing:private", {
-      userId: socket.user.id, username: socket.user.username, isTyping: !!isTyping,
+      userId: socket.user.id,
+      username: socket.user.username,
+      isTyping: !!isTyping,
     });
   });
 
@@ -948,10 +988,27 @@ io.on("connection", async (socket) => {
     const id = String(nextUnoId++);
     const safeName = typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
     const room = {
-      id, name: safeName, hostId: socket.user.id,
-      players: [{ userId: socket.user.id, username: socket.user.username, hand: [], calledUno: false }],
-      deck: [], discard: [], currentTurn: 0, direction: 1, currentColor: null,
-      status: "waiting", winner: null, pendingDraw: 0, pendingType: null, emptiedAt: null,
+      id,
+      name: safeName,
+      hostId: socket.user.id,
+      players: [
+        {
+          userId: socket.user.id,
+          username: socket.user.username,
+          hand: [],
+          calledUno: false,
+        },
+      ],
+      deck: [],
+      discard: [],
+      currentTurn: 0,
+      direction: 1,
+      currentColor: null,
+      status: "waiting",
+      winner: null,
+      pendingDraw: 0,
+      pendingType: null,
+      emptiedAt: null,
     };
     unoRooms.set(id, room);
     broadcastUno(room);
@@ -973,7 +1030,12 @@ io.on("connection", async (socket) => {
     if (r.status !== "waiting") return cb && cb({ ok: false, error: "Partie déjà lancée" });
     if (r.players.length >= 6) return cb && cb({ ok: false, error: "Salon plein" });
 
-    r.players.push({ userId: socket.user.id, username: socket.user.username, hand: [], calledUno: false });
+    r.players.push({
+      userId: socket.user.id,
+      username: socket.user.username,
+      hand: [],
+      calledUno: false,
+    });
     r.emptiedAt = null;
     broadcastUno(r);
     cb && cb({ ok: true });
@@ -996,18 +1058,28 @@ io.on("connection", async (socket) => {
   socket.on("uno:start", ({ roomId }) => {
     const r = unoRooms.get(roomId);
     if (!r || r.hostId !== socket.user.id) return;
-    if (r.players.length < 2) return socket.emit("chat:error", { message: "Min 2 joueurs" });
+    if (r.players.length < 2)
+      return socket.emit("chat:error", { message: "Min 2 joueurs" });
 
     r.deck = buildDeck();
-    r.discard = []; r.direction = 1;
+    r.discard = [];
+    r.direction = 1;
     r.currentTurn = Math.floor(Math.random() * r.players.length);
-    r.status = "playing"; r.winner = null;
-    r.pendingDraw = 0; r.pendingType = null;
+    r.status = "playing";
+    r.winner = null;
+    r.pendingDraw = 0;
+    r.pendingType = null;
 
-    r.players.forEach((p) => { p.hand = r.deck.splice(0, 7); p.calledUno = false; });
+    r.players.forEach((p) => {
+      p.hand = r.deck.splice(0, 7);
+      p.calledUno = false;
+    });
 
     let top = r.deck.pop();
-    while (top.value === "wild4") { r.deck.unshift(top); top = r.deck.pop(); }
+    while (top.value === "wild4") {
+      r.deck.unshift(top);
+      top = r.deck.pop();
+    }
     r.discard.push(top);
     r.currentColor = top.color === "wild" ? COLORS[0] : top.color;
     broadcastUno(r);
@@ -1032,7 +1104,9 @@ io.on("connection", async (socket) => {
         return socket.emit("chat:error", { message: "Tu dois jouer un +4 ou piocher" });
     }
 
-    const playable = card.color === "wild" || card.color === r.currentColor ||
+    const playable =
+      card.color === "wild" ||
+      card.color === r.currentColor ||
       (card.value === top.value && top.color !== "wild");
     if (!playable) return socket.emit("chat:error", { message: "Carte invalide" });
 
@@ -1046,22 +1120,33 @@ io.on("connection", async (socket) => {
     };
 
     if (card.value === "reverse") {
-      if (n === 2) {} else { r.direction *= -1; next(); }
+      if (n === 2) {
+      } else {
+        r.direction *= -1;
+        next();
+      }
     } else if (card.value === "skip") next(2);
     else if (card.value === "draw2") {
-      r.pendingDraw = (r.pendingDraw || 0) + 2; r.pendingType = "draw2"; next();
+      r.pendingDraw = (r.pendingDraw || 0) + 2;
+      r.pendingType = "draw2";
+      next();
     } else if (card.value === "wild4") {
-      r.pendingDraw = (r.pendingDraw || 0) + 4; r.pendingType = "wild4"; next();
+      r.pendingDraw = (r.pendingDraw || 0) + 4;
+      r.pendingType = "wild4";
+      next();
     } else next();
 
     if (me.hand.length === 0) {
-      r.status = "finished"; r.winner = me.username;
+      r.status = "finished";
+      r.winner = me.username;
       broadcastUno(r);
       awardUnoWin(me.username);
       const target = r.id;
       setTimeout(() => {
         if (unoRooms.get(target) !== r) return;
-        r.players.forEach((p) => io.to(`u:${p.userId}`).emit("uno:kicked", { reason: "Partie terminée" }));
+        r.players.forEach((p) =>
+          io.to(`u:${p.userId}`).emit("uno:kicked", { reason: "Partie terminée" })
+        );
         unoRooms.delete(target);
         io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
       }, 15000);
@@ -1081,7 +1166,8 @@ io.on("connection", async (socket) => {
     for (let i = 0; i < count; i++) me.hand.push(drawCard(r));
 
     const hadPending = r.pendingDraw > 0;
-    r.pendingDraw = 0; r.pendingType = null;
+    r.pendingDraw = 0;
+    r.pendingType = null;
 
     if (hadPending) {
       const n = r.players.length;
@@ -1093,7 +1179,10 @@ io.on("connection", async (socket) => {
   socket.on("uno:uno", ({ roomId }) => {
     const r = unoRooms.get(roomId);
     const me = r?.players.find((p) => p.userId === socket.user.id);
-    if (me) { me.calledUno = true; broadcastUno(r); }
+    if (me) {
+      me.calledUno = true;
+      broadcastUno(r);
+    }
   });
 
   // ─── CHESS ───
@@ -1107,9 +1196,15 @@ io.on("connection", async (socket) => {
     const id = String(nextChessId++);
     const safeName = typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
     const game = {
-      id, name: safeName, status: "waiting",
-      white: socket.user, black: null,
-      game: new Chess(), winner: null, lastMove: null, emptiedAt: null,
+      id,
+      name: safeName,
+      status: "waiting",
+      white: socket.user,
+      black: null,
+      game: new Chess(),
+      winner: null,
+      lastMove: null,
+      emptiedAt: null,
     };
     chessGames.set(id, game);
     broadcastChess(game);
@@ -1127,7 +1222,8 @@ io.on("connection", async (socket) => {
       return cb && cb({ ok: true });
     }
 
-    if (g.status !== "waiting") return cb && cb({ ok: false, error: "Partie déjà commencée" });
+    if (g.status !== "waiting")
+      return cb && cb({ ok: false, error: "Partie déjà commencée" });
     if (!g.black) {
       g.black = socket.user;
       g.status = "playing";
@@ -1145,7 +1241,9 @@ io.on("connection", async (socket) => {
     const isBlack = g.black?.id === socket.user.id;
     if (!isWhite && !isBlack) return;
 
-    const myTurn = (g.game.turn() === "w" && isWhite) || (g.game.turn() === "b" && isBlack);
+    const myTurn =
+      (g.game.turn() === "w" && isWhite) ||
+      (g.game.turn() === "b" && isBlack);
     if (!myTurn) return socket.emit("chat:error", { message: "Pas ton tour" });
 
     try {
@@ -1155,9 +1253,13 @@ io.on("connection", async (socket) => {
 
       let finished = false;
       if (g.game.isCheckmate()) {
-        g.status = "finished"; g.winner = socket.user.username; finished = true;
+        g.status = "finished";
+        g.winner = socket.user.username;
+        finished = true;
       } else if (g.game.isDraw() || g.game.isStalemate()) {
-        g.status = "finished"; g.winner = "Égalité"; finished = true;
+        g.status = "finished";
+        g.winner = "Égalité";
+        finished = true;
       }
       broadcastChess(g);
 
@@ -1181,7 +1283,8 @@ io.on("connection", async (socket) => {
     const g = chessGames.get(gameId);
     if (!g) return;
     g.status = "finished";
-    g.winner = g.white?.id === socket.user.id ? g.black?.username : g.white?.username;
+    g.winner =
+      g.white?.id === socket.user.id ? g.black?.username : g.white?.username;
     broadcastChess(g);
     awardChessWin(g.winner);
     const target = g.id;
@@ -1241,28 +1344,42 @@ app.delete("/api/admin/chess/games/:gameId", protect, adminOnly, (req, res) => {
 async function purgeOldMessages() {
   try {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const deleted = await Message.destroy({ where: { createdAt: { [Op.lt]: cutoff } } });
-    if (deleted > 0) console.log(`🧹 ${deleted} messages purgés (> 7 jours)`);
-  } catch (e) { console.error("[purge]", e); }
+    const deleted = await Message.destroy({
+      where: { createdAt: { [Op.lt]: cutoff } },
+    });
+    if (deleted > 0)
+      console.log(`🧹 ${deleted} messages purgés (> 7 jours)`);
+  } catch (e) {
+    console.error("[purge]", e);
+  }
 }
 setTimeout(purgeOldMessages, 10_000);
 setInterval(purgeOldMessages, 6 * 60 * 60 * 1000);
 
 setInterval(() => {
   const now = Date.now();
-  let changedUno = false, changedChess = false;
+  let changedUno = false,
+    changedChess = false;
   for (const [id, r] of unoRooms.entries()) {
     if (r.players.length === 0 && r.emptiedAt && now - r.emptiedAt > 5 * 60_000) {
-      unoRooms.delete(id); changedUno = true;
+      unoRooms.delete(id);
+      changedUno = true;
     }
   }
   for (const [id, g] of chessGames.entries()) {
-    if (g.status === "waiting" && g.emptiedAt && now - g.emptiedAt > 5 * 60_000) {
-      chessGames.delete(id); changedChess = true;
+    if (
+      g.status === "waiting" &&
+      g.emptiedAt &&
+      now - g.emptiedAt > 5 * 60_000
+    ) {
+      chessGames.delete(id);
+      changedChess = true;
     }
   }
-  if (changedUno) io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
-  if (changedChess) io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
+  if (changedUno)
+    io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
+  if (changedChess)
+    io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
 const PORT = process.env.PORT || 5000;
