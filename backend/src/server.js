@@ -605,7 +605,12 @@ app.delete("/api/me/delete", protect, async (req, res) => {
 //  ADMIN
 // ═══════════════════════════════════════════════════════════════
 app.get("/api/admin/users", protect, adminOnly, async (_, res) => {
-  res.json(await User.findAll({ attributes: { exclude: ["password"] } }));
+  res.json(
+    await User.findAll({
+      where: { emailVerified: true },
+      attributes: { exclude: ["password"] },
+    })
+  );
 });
 
 app.put("/api/admin/users/:id/role", protect, adminOnly, async (req, res) => {
@@ -945,6 +950,7 @@ io.on("connection", async (socket) => {
     return { ok: true };
   }
 
+  // ─── CHAT ───
   socket.on("chat:join", ({ roomId }) => {
     socket.join(`r:${roomId}`);
   });
@@ -1359,6 +1365,7 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // ─── DISCONNECT ───
   socket.on("disconnect", async () => {
     console.log(`❌ Déconnecté: ${socket.user.username}`);
     await User.update({ online: false }, { where: { id: socket.user.id } });
@@ -1410,9 +1417,32 @@ async function purgeOldMessages() {
     console.error("[purge]", e);
   }
 }
-setTimeout(purgeOldMessages, 10_000);
-setInterval(purgeOldMessages, 6 * 60 * 60 * 1000);
 
+async function purgeUnverifiedAccounts() {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const deleted = await User.destroy({
+      where: {
+        emailVerified: false,
+        createdAt: { [Op.lt]: cutoff },
+      },
+    });
+    if (deleted > 0)
+      console.log(`🧹 ${deleted} comptes non vérifiés supprimés (> 24h)`);
+  } catch (e) {
+    console.error("[purge unverified]", e);
+  }
+}
+
+setTimeout(() => {
+  purgeOldMessages();
+  purgeUnverifiedAccounts();
+}, 10_000);
+
+setInterval(purgeOldMessages, 6 * 60 * 60 * 1000); // toutes les 6h
+setInterval(purgeUnverifiedAccounts, 60 * 60 * 1000); // toutes les heures
+
+// Nettoyage des salles UNO/Chess vides
 setInterval(() => {
   const now = Date.now();
   let changedUno = false,
@@ -1443,6 +1473,9 @@ setInterval(() => {
     io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
 }, 60_000);
 
+// ═══════════════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
 connectDB().then(() =>
   server.listen(PORT, () => console.log(`🚀 Backend prêt sur ${PORT}`))
