@@ -70,7 +70,13 @@ export default function Sidebar() {
         <div className="sb-header">
           <div className="sb-logo-row">
             <div className="sb-logo">
-              <span className="sb-logo-icon">💬</span>
+              <img
+                src="/images/logo.png"
+                alt="Logo Messagerie"
+                className="sb-logo-img"
+                width="48"
+                height="48"
+              />
               <span className="sb-logo-text">Messagerie</span>
             </div>
             <button
@@ -209,31 +215,31 @@ export default function Sidebar() {
 
         {/* ═══ FOOTER ═══ */}
         <div className="sb-footer">
-  <button className="sb-logout" onClick={logout}>
-    <span className="sb-icon">🚪</span>
-    <span className="sb-label">Déconnexion</span>
-  </button>
+          <button className="sb-logout" onClick={logout}>
+            <span className="sb-icon">🚪</span>
+            <span className="sb-label">Déconnexion</span>
+          </button>
 
-  <div className="sb-legal-links">
-  <Link to="/mentions-legales">Mentions</Link>
-  <span>·</span>
-  <Link to="/confidentialite">Confidentialité</Link>
-  <span>·</span>
-  <Link to="/accessibilite">Accessibilité</Link>
-  <span>·</span>
-  {/* 🎵 Easter egg */}
-    <a
-    href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-    target="_blank"
-    rel="noreferrer"
-    className="sb-legal-rickroll"
-  >
-    Lael
-  </a>
-</div>
+          <div className="sb-legal-links">
+            <Link to="/mentions-legales">Mentions</Link>
+            <span>·</span>
+            <Link to="/confidentialite">Confidentialité</Link>
+            <span>·</span>
+            <Link to="/accessibilite">Accessibilité</Link>
+            <span>·</span>
+            {/* 🎵 Easter egg */}
+            <a
+              href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+              target="_blank"
+              rel="noreferrer"
+              className="sb-legal-rickroll"
+            >
+              Lael
+            </a>
+          </div>
 
-  <div className="sb-copyright">© 2026 Julien Traineau</div>
-</div>
+          <div className="sb-copyright">© 2026 Julien Traineau</div>
+        </div>
       </aside>
 
       <main className="app-main">
