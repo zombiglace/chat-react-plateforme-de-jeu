@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import { useSocket } from "../context/SocketContext";
-
+import "../styles/adminpanel.css";
 // 🧩 Presets d'injection prêts à l'emploi
 const PRESETS = [
   {
