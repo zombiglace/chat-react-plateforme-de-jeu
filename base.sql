@@ -128,3 +128,26 @@ UNION ALL
 SELECT 'Documents', COUNT(*) FROM "Documents"
 UNION ALL
 SELECT 'BanList',   COUNT(*) FROM "BanList";
+
+-- 1. Repère les doublons existants
+SELECT LOWER(email) AS e, COUNT(*)
+FROM "Users"
+GROUP BY LOWER(email)
+HAVING COUNT(*) > 1;
+
+-- 2. Supprime les doublons (garde l'id le plus petit)
+DELETE FROM "Users" a
+USING "Users" b
+WHERE a.id > b.id
+  AND LOWER(a.email) = LOWER(b.email);
+
+-- 3. Normalise tous les emails restants
+UPDATE "Users" SET email = LOWER(TRIM(email));
+
+-- 4. Recrée la contrainte UNIQUE sur email
+ALTER TABLE "Users" DROP CONSTRAINT IF EXISTS "Users_email_key";
+ALTER TABLE "Users" ADD CONSTRAINT "Users_email_key" UNIQUE (email);
+
+-- 5. (Recommandé) Index unique insensible à la casse : défense en profondeur
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_ci_unique
+ON "Users" (LOWER(email));
