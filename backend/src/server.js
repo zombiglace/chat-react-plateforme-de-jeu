@@ -20,8 +20,19 @@ const {
   Room,
   Document,
   BanList,
-  PinnedDoc,
 } = require("./config/db");
+
+// ═══════════════════════════════════════════════════════════════
+//  VALIDATION ENV
+// ═══════════════════════════════════════════════════════════════
+if (!process.env.JWT_SECRET) {
+  console.error("❌ FATAL: JWT_SECRET manquant");
+  process.exit(1);
+}
+if (!process.env.DATABASE_URL) {
+  console.error("❌ FATAL: DATABASE_URL manquant");
+  process.exit(1);
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG
@@ -144,7 +155,9 @@ async function protect(req, res, next) {
     if (!token) return res.status(401).json({ message: "Non authentifié" });
 
     const d = jwt.verify(token, process.env.JWT_SECRET);
-    const u = await User.findByPk(d.id, { attributes: { exclude: ["password"] } });
+    const u = await User.findByPk(d.id, {
+      attributes: { exclude: ["password"] },
+    });
     if (!u) return res.status(401).json({ message: "Introuvable" });
     if (u.banned) return res.status(403).json({ message: "🚫 Banni" });
 
@@ -166,7 +179,7 @@ const adminOnly = (req, res, next) =>
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH — externalisé dans ./routes/auth.js
+//  AUTH — UNIQUEMENT via routes/auth.js
 // ═══════════════════════════════════════════════════════════════
 app.use("/api/auth", require("./routes/auth"));
 
@@ -243,7 +256,6 @@ app.get("/api/messages/private/:id", protect, async (req, res) => {
   );
 });
 
-// 🗑️ SUPPRIMER UN MESSAGE (propriétaire ou admin)
 app.delete("/api/messages/:id", protect, async (req, res) => {
   try {
     const msg = await Message.findByPk(req.params.id);
@@ -251,7 +263,6 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 
     const isOwner = msg.senderId === req.user.id;
     const isAdmin = req.user.role === "admin";
-
     if (!isOwner && !isAdmin)
       return res
         .status(403)
@@ -263,12 +274,8 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 
     await msg.destroy();
 
-    if (roomId) {
-      io.to(`r:${roomId}`).emit("message:deleted", { id: msgId, roomId });
-    }
-    if (receiverId) {
-      io.emit("message:deleted", { id: msgId });
-    }
+    if (roomId) io.to(`r:${roomId}`).emit("message:deleted", { id: msgId, roomId });
+    if (receiverId) io.emit("message:deleted", { id: msgId });
 
     res.json({ ok: true });
   } catch (e) {
@@ -278,7 +285,7 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  DOCUMENTS (upload + pin)
+//  DOCUMENTS
 // ═══════════════════════════════════════════════════════════════
 app.get("/api/documents", protect, async (_, res) => {
   res.json(
@@ -312,7 +319,6 @@ app.post("/api/documents", protect, (req, res) => {
   });
 });
 
-// 📌 Épingler (admin)
 app.post("/api/documents/:id/pin", protect, adminOnly, async (req, res) => {
   try {
     const doc = await Document.findByPk(req.params.id);
@@ -345,7 +351,7 @@ app.delete("/api/documents/:id", protect, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  MES DONNÉES (RGPD)
+//  RGPD
 // ═══════════════════════════════════════════════════════════════
 app.get("/api/me/export", protect, async (req, res) => {
   try {
@@ -459,7 +465,9 @@ app.put("/api/me/update", protect, async (req, res) => {
     if (currentPassword) {
       const ok = await bcrypt.compare(currentPassword, me.password);
       if (!ok)
-        return res.status(400).json({ message: "Mot de passe actuel incorrect" });
+        return res
+          .status(400)
+          .json({ message: "Mot de passe actuel incorrect" });
     }
 
     if (wantsUsernameChange) {
@@ -468,7 +476,8 @@ app.put("/api/me/update", protect, async (req, res) => {
           .status(400)
           .json({ message: "Le pseudo doit faire entre 3 et 30 caractères" });
       const exists = await User.findOne({ where: { username } });
-      if (exists) return res.status(400).json({ message: "Ce pseudo est déjà pris" });
+      if (exists)
+        return res.status(400).json({ message: "Ce pseudo est déjà pris" });
       me.username = username;
     }
 
@@ -481,7 +490,10 @@ app.put("/api/me/update", protect, async (req, res) => {
           .status(400)
           .json({ message: "Utilise une adresse Gmail, Hotmail ou Outlook" });
       const exists = await User.findOne({ where: { email: cleanEmail } });
-      if (exists) return res.status(400).json({ message: "Cet email est déjà utilisé" });
+      if (exists)
+        return res
+          .status(400)
+          .json({ message: "Cet email est déjà utilisé" });
       me.email = cleanEmail;
     }
 
@@ -489,7 +501,9 @@ app.put("/api/me/update", protect, async (req, res) => {
       if (newPassword.length < 6)
         return res
           .status(400)
-          .json({ message: "Le mot de passe doit faire au moins 6 caractères" });
+          .json({
+            message: "Le mot de passe doit faire au moins 6 caractères",
+          });
       me.password = await bcrypt.hash(newPassword, 10);
     }
 
@@ -508,11 +522,14 @@ app.delete("/api/me/delete", protect, async (req, res) => {
   try {
     const { password, confirm } = req.body;
     if (confirm !== "SUPPRIMER")
-      return res.status(400).json({ message: 'Tape "SUPPRIMER" pour confirmer' });
+      return res
+        .status(400)
+        .json({ message: 'Tape "SUPPRIMER" pour confirmer' });
 
     const me = await User.findByPk(req.user.id);
     if (!me) return res.status(404).json({ message: "Compte introuvable" });
-    if (!password) return res.status(400).json({ message: "Mot de passe requis" });
+    if (!password)
+      return res.status(400).json({ message: "Mot de passe requis" });
 
     const ok = await bcrypt.compare(password, me.password);
     if (!ok) return res.status(400).json({ message: "Mot de passe incorrect" });
@@ -688,7 +705,9 @@ app.get(
             { senderId: userB, receiverId: userA },
           ],
         },
-        include: [{ model: User, as: "sender", attributes: ["id", "username"] }],
+        include: [
+          { model: User, as: "sender", attributes: ["id", "username"] },
+        ],
         order: [["createdAt", "ASC"]],
       })
     );
@@ -729,10 +748,7 @@ function buildDeck() {
   for (const c of COLORS) {
     d.push({ color: c, value: "0" });
     for (let i = 1; i <= 9; i++) {
-      d.push(
-        { color: c, value: String(i) },
-        { color: c, value: String(i) }
-      );
+      d.push({ color: c, value: String(i) }, { color: c, value: String(i) });
     }
     for (const v of ["skip", "reverse", "draw2"]) {
       d.push({ color: c, value: v }, { color: c, value: v });
@@ -855,9 +871,6 @@ async function awardChessWin(username) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  HELPER — Émission liste en ligne
-// ═══════════════════════════════════════════════════════════════
 async function emitOnlineUsers() {
   try {
     const online = await User.findAll({
@@ -902,7 +915,6 @@ io.on("connection", async (socket) => {
     return { ok: true };
   }
 
-  // ─── CHAT ───
   socket.on("chat:join", ({ roomId }) => {
     socket.join(`r:${roomId}`);
   });
@@ -986,7 +998,8 @@ io.on("connection", async (socket) => {
 
   socket.on("uno:create", ({ name }, cb) => {
     const id = String(nextUnoId++);
-    const safeName = typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
+    const safeName =
+      typeof name === "string" ? name.slice(0, 50) : `Salon ${id}`;
     const room = {
       id,
       name: safeName,
@@ -1027,8 +1040,10 @@ io.on("connection", async (socket) => {
       return cb && cb({ ok: true });
     }
 
-    if (r.status !== "waiting") return cb && cb({ ok: false, error: "Partie déjà lancée" });
-    if (r.players.length >= 6) return cb && cb({ ok: false, error: "Salon plein" });
+    if (r.status !== "waiting")
+      return cb && cb({ ok: false, error: "Partie déjà lancée" });
+    if (r.players.length >= 6)
+      return cb && cb({ ok: false, error: "Salon plein" });
 
     r.players.push({
       userId: socket.user.id,
@@ -1099,20 +1114,26 @@ io.on("connection", async (socket) => {
 
     if (r.pendingDraw > 0) {
       if (r.pendingType === "draw2" && card.value !== "draw2")
-        return socket.emit("chat:error", { message: "Tu dois jouer un +2 ou piocher" });
+        return socket.emit("chat:error", {
+          message: "Tu dois jouer un +2 ou piocher",
+        });
       if (r.pendingType === "wild4" && card.value !== "wild4")
-        return socket.emit("chat:error", { message: "Tu dois jouer un +4 ou piocher" });
+        return socket.emit("chat:error", {
+          message: "Tu dois jouer un +4 ou piocher",
+        });
     }
 
     const playable =
       card.color === "wild" ||
       card.color === r.currentColor ||
       (card.value === top.value && top.color !== "wild");
-    if (!playable) return socket.emit("chat:error", { message: "Carte invalide" });
+    if (!playable)
+      return socket.emit("chat:error", { message: "Carte invalide" });
 
     me.hand.splice(cardIndex, 1);
     r.discard.push(card);
-    r.currentColor = card.color === "wild" ? chosenColor || COLORS[0] : card.color;
+    r.currentColor =
+      card.color === "wild" ? chosenColor || COLORS[0] : card.color;
 
     const n = r.players.length;
     const next = (step = 1) => {
@@ -1145,7 +1166,9 @@ io.on("connection", async (socket) => {
       setTimeout(() => {
         if (unoRooms.get(target) !== r) return;
         r.players.forEach((p) =>
-          io.to(`u:${p.userId}`).emit("uno:kicked", { reason: "Partie terminée" })
+          io
+            .to(`u:${p.userId}`)
+            .emit("uno:kicked", { reason: "Partie terminée" })
         );
         unoRooms.delete(target);
         io.emit("uno:rooms", [...unoRooms.values()].map(publicRoom));
@@ -1194,7 +1217,8 @@ io.on("connection", async (socket) => {
 
   socket.on("chess:create", ({ name }, cb) => {
     const id = String(nextChessId++);
-    const safeName = typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
+    const safeName =
+      typeof name === "string" ? name.slice(0, 50) : `Partie ${id}`;
     const game = {
       id,
       name: safeName,
@@ -1242,9 +1266,9 @@ io.on("connection", async (socket) => {
     if (!isWhite && !isBlack) return;
 
     const myTurn =
-      (g.game.turn() === "w" && isWhite) ||
-      (g.game.turn() === "b" && isBlack);
-    if (!myTurn) return socket.emit("chat:error", { message: "Pas ton tour" });
+      (g.game.turn() === "w" && isWhite) || (g.game.turn() === "b" && isBlack);
+    if (!myTurn)
+      return socket.emit("chat:error", { message: "Pas ton tour" });
 
     try {
       const move = g.game.move({ from, to, promotion: promotion || "q" });
@@ -1306,7 +1330,6 @@ io.on("connection", async (socket) => {
     }
   });
 
-  // ─── DISCONNECT ───
   socket.on("disconnect", async () => {
     console.log(`❌ Déconnecté: ${socket.user.username}`);
     await User.update({ online: false }, { where: { id: socket.user.id } });
@@ -1327,16 +1350,21 @@ app.delete("/api/admin/uno/rooms/:roomId", protect, adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/admin/chess/games/:gameId", protect, adminOnly, (req, res) => {
-  if (!chessGames.has(req.params.gameId))
-    return res.status(404).json({ message: "Partie introuvable" });
-  const g = chessGames.get(req.params.gameId);
-  if (g.white) io.to(`u:${g.white.id}`).emit("chess:deleted");
-  if (g.black) io.to(`u:${g.black.id}`).emit("chess:deleted");
-  chessGames.delete(req.params.gameId);
-  io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
-  res.json({ ok: true });
-});
+app.delete(
+  "/api/admin/chess/games/:gameId",
+  protect,
+  adminOnly,
+  (req, res) => {
+    if (!chessGames.has(req.params.gameId))
+      return res.status(404).json({ message: "Partie introuvable" });
+    const g = chessGames.get(req.params.gameId);
+    if (g.white) io.to(`u:${g.white.id}`).emit("chess:deleted");
+    if (g.black) io.to(`u:${g.black.id}`).emit("chess:deleted");
+    chessGames.delete(req.params.gameId);
+    io.emit("chess:rooms", [...chessGames.values()].map(publicChess));
+    res.json({ ok: true });
+  }
+);
 
 // ═══════════════════════════════════════════════════════════════
 //  PURGE
@@ -1361,7 +1389,11 @@ setInterval(() => {
   let changedUno = false,
     changedChess = false;
   for (const [id, r] of unoRooms.entries()) {
-    if (r.players.length === 0 && r.emptiedAt && now - r.emptiedAt > 5 * 60_000) {
+    if (
+      r.players.length === 0 &&
+      r.emptiedAt &&
+      now - r.emptiedAt > 5 * 60_000
+    ) {
       unoRooms.delete(id);
       changedUno = true;
     }
