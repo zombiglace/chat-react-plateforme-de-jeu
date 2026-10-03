@@ -33,6 +33,18 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ FATAL: DATABASE_URL manquant");
   process.exit(1);
 }
+if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  console.error(
+    "❌ FATAL: Config SMTP incomplète (SMTP_HOST/SMTP_USER/SMTP_PASS)"
+  );
+  process.exit(1);
+}
+if (!process.env.FRONTEND_URL) {
+  console.warn(
+    "⚠️  FRONTEND_URL non défini, utilisation de http://localhost:5173"
+  );
+  process.env.FRONTEND_URL = "http://localhost:5173";
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  CONFIG
@@ -88,13 +100,14 @@ const apiLimiter = rateLimit({
 app.use("/api/", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/resend-verification", authLimiter);
 
 app.use(express.json({ limit: "1mb" }));
 
 // ═══════════════════════════════════════════════════════════════
 //  UPLOADS
 // ═══════════════════════════════════════════════════════════════
-const uploadDir = path.join(__dirname, "..", "uploads");
+const uploadDir = path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const ALLOWED_MIME = [
@@ -179,7 +192,7 @@ const adminOnly = (req, res, next) =>
 app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH — UNIQUEMENT via routes/auth.js
+//  AUTH — UNIQUEMENT via routes/auth.routes.js
 // ═══════════════════════════════════════════════════════════════
 app.use("/api/auth", require("./routes/auth.routes"));
 
@@ -274,7 +287,8 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 
     await msg.destroy();
 
-    if (roomId) io.to(`r:${roomId}`).emit("message:deleted", { id: msgId, roomId });
+    if (roomId)
+      io.to(`r:${roomId}`).emit("message:deleted", { id: msgId, roomId });
     if (receiverId) io.emit("message:deleted", { id: msgId });
 
     res.json({ ok: true });
@@ -290,7 +304,9 @@ app.delete("/api/messages/:id", protect, async (req, res) => {
 app.get("/api/documents", protect, async (_, res) => {
   res.json(
     await Document.findAll({
-      include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
+      include: [
+        { model: User, as: "uploadedBy", attributes: ["id", "username"] },
+      ],
       order: [["pinned", "DESC"], ["createdAt", "DESC"]],
     })
   );
@@ -310,7 +326,9 @@ app.post("/api/documents", protect, (req, res) => {
         uploadedById: req.user.id,
       });
       const full = await Document.findByPk(doc.id, {
-        include: [{ model: User, as: "uploadedBy", attributes: ["id", "username"] }],
+        include: [
+          { model: User, as: "uploadedBy", attributes: ["id", "username"] },
+        ],
       });
       res.json(full);
     } catch (e) {
@@ -401,6 +419,7 @@ app.get("/api/me/export", protect, async (req, res) => {
         username: me.username,
         email: me.email,
         role: me.role,
+        email_verified: me.emailVerified,
         created_at: me.createdAt,
         updated_at: me.updatedAt,
         uno_wins: me.unoWins,
@@ -499,11 +518,9 @@ app.put("/api/me/update", protect, async (req, res) => {
 
     if (wantsPasswordChange) {
       if (newPassword.length < 6)
-        return res
-          .status(400)
-          .json({
-            message: "Le mot de passe doit faire au moins 6 caractères",
-          });
+        return res.status(400).json({
+          message: "Le mot de passe doit faire au moins 6 caractères",
+        });
       me.password = await bcrypt.hash(newPassword, 10);
     }
 
