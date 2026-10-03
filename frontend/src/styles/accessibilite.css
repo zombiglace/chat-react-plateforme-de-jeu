@@ -1,0 +1,208 @@
+/* ═══════════════════════════════════════════════════════════════
+   ACCESSIBILITÉ — Styles spécifiques
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── SCORE DE CONFORMITÉ ─── */
+.legal-compliance {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(139, 92, 246, 0.05));
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+
+.legal-compliance-score {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+}
+
+.legal-compliance-ring {
+  transform: rotate(-90deg);
+  width: 90px;
+  height: 90px;
+}
+
+.legal-compliance-ring circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.legal-compliance-ring .bg {
+  stroke: var(--bg-3);
+}
+
+.legal-compliance-ring .progress {
+  stroke: url(#complianceGradient);
+  stroke-dasharray: 251.2;
+  stroke-dashoffset: 62.8; /* 75% */
+  animation: compliance-fill 1.2s ease-out forwards;
+}
+
+@keyframes compliance-fill {
+  from { stroke-dashoffset: 251.2; }
+  to { stroke-dashoffset: 62.8; }
+}
+
+.legal-compliance-value {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.legal-compliance-value small {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-4);
+  margin-left: 1px;
+}
+
+.legal-compliance-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.legal-compliance-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.legal-compliance-desc {
+  font-size: 0.85rem;
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+.legal-compliance-desc strong {
+  color: #60a5fa;
+}
+
+/* ─── STATE BADGE (conformité) ─── */
+.legal-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 999px;
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.legal-state-badge::before {
+  content: "⚠";
+  font-size: 0.9rem;
+}
+
+/* ─── ACCESSIBLE / NON ACCESSIBLE (2 colonnes) ─── */
+.legal-access-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.legal-access-col {
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.legal-access-col.ok {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.06), transparent);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.legal-access-col.ko {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.06), transparent);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+.legal-access-col-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border-2);
+}
+
+.legal-access-col.ok .legal-access-col-head::before {
+  content: "✅";
+  font-size: 1rem;
+}
+
+.legal-access-col.ko .legal-access-col-head::before {
+  content: "⚠️";
+  font-size: 1rem;
+}
+
+.legal-access-col ul {
+  margin: 0;
+}
+
+.legal-access-col ul li {
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.legal-access-col.ok ul li::before {
+  background: #22c55e;
+}
+
+.legal-access-col.ko ul li::before {
+  background: #f87171;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .legal-compliance {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .legal-access-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .legal-compliance-score {
+    width: 76px;
+    height: 76px;
+  }
+
+  .legal-compliance-ring {
+    width: 76px;
+    height: 76px;
+  }
+
+  .legal-compliance-value {
+    font-size: 1.15rem;
+  }
+
+  .legal-access-col {
+    padding: 1rem;
+  }
+}
