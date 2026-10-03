@@ -33,9 +33,9 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ FATAL: DATABASE_URL manquant");
   process.exit(1);
 }
-if (!process.env.RESEND_API_KEY) {
+if (!process.env.BREVO_API_KEY) {
   console.error(
-    "❌ FATAL: RESEND_API_KEY manquante (nécessaire pour envoyer les emails)"
+    "❌ FATAL: BREVO_API_KEY manquante (nécessaire pour envoyer les emails)"
   );
   process.exit(1);
 }
@@ -66,7 +66,8 @@ const io = new Server(server, {
   cors: { origin: true, credentials: true, methods: ["GET", "POST"] },
 });
 
-app.set("trust proxy", true);
+// ✅ FIX : "1" au lieu de "true" (Render = 1 proxy)
+app.set("trust proxy", 1);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
@@ -87,6 +88,7 @@ const authLimiter = rateLimit({
   message: { message: "Trop de tentatives, réessaye dans 15 min" },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 
 const apiLimiter = rateLimit({
@@ -95,6 +97,7 @@ const apiLimiter = rateLimit({
   message: { message: "Trop de requêtes, ralentis un peu" },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
 });
 
 app.use("/api/", apiLimiter);
