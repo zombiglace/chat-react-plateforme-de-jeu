@@ -142,8 +142,14 @@ router.post("/register", async (req, res) => {
         username: cleanUsername,
         token,
       });
+      console.log(`✅ [register] Email de vérif envoyé à ${cleanEmail}`);
     } catch (mailErr) {
-      console.error("[register] Erreur envoi email :", mailErr.message);
+      console.error(
+        "[register] ❌ Erreur envoi email :",
+        mailErr.message
+      );
+      // On ne bloque pas l'inscription, mais on logge
+      // Le user pourra toujours cliquer sur "renvoyer l'email"
     }
 
     console.log(`✅ [register] Nouveau compte (non vérifié) : ${cleanEmail}`);
@@ -197,6 +203,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Vérif email
     if (!user.emailVerified) {
       console.log(`⏳ [login] Email non vérifié : ${cleanEmail}`);
       return res.status(403).json({
@@ -306,6 +313,7 @@ router.post("/resend-verification", async (req, res) => {
 
     const user = await User.findOne({ where: { email: cleanEmail } });
 
+    // Réponse générique (anti-énumération)
     if (!user || user.emailVerified) {
       return res.json({
         ok: true,
@@ -314,6 +322,7 @@ router.post("/resend-verification", async (req, res) => {
       });
     }
 
+    // Nouveau token
     const token = generateToken();
     const expires = new Date(Date.now() + TOKEN_TTL_MS);
 
@@ -321,28 +330,38 @@ router.post("/resend-verification", async (req, res) => {
     user.emailVerificationExpires = expires;
     await user.save();
 
+    // Envoi AVEC gestion d'erreur propre
     try {
       await sendVerificationEmail({
         to: cleanEmail,
         username: user.username,
         token,
       });
+      console.log(
+        `📧 [resend-verification] Nouveau lien envoyé à ${cleanEmail}`
+      );
     } catch (mailErr) {
-      console.error("[resend-verification] Erreur email :", mailErr.message);
+      console.error(
+        "[resend-verification] ❌ Erreur envoi email :",
+        mailErr.message
+      );
       return res.status(500).json({
         message:
           "Impossible d'envoyer l'email pour le moment. Réessaie plus tard.",
+        code: "EMAIL_SEND_FAILED",
       });
     }
-
-    console.log(`📧 [resend-verification] Nouveau lien pour : ${cleanEmail}`);
 
     res.json({
       ok: true,
       message: "Un nouveau lien de confirmation vient d'être envoyé.",
     });
   } catch (e) {
-    console.error("[resend-verification] ERREUR:", e);
+    console.error("[resend-verification] ERREUR:", {
+      name: e.name,
+      message: e.message,
+      stack: e.stack?.split("\n").slice(0, 3).join("\n"),
+    });
     res.status(500).json({ message: "Erreur serveur" });
   }
 });
