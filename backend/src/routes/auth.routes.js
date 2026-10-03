@@ -4,8 +4,10 @@ const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const { User, BanList } = require("../config/db");
 
-const sign = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+const ALLOWED_EMAIL = /@(gmail|hotmail|outlook)\.(com|fr)$/i;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const sign = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 function getIp(req) {
   return (
@@ -15,64 +17,105 @@ function getIp(req) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  REGISTER
+// ═══════════════════════════════════════════════════════════════
 router.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    if (!username || !email || !password)
-      return res.status(400).json({ message: "Champs manquants" });
+
+    // ─── 1. Validation stricte des types ───
+    if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string")
+      return res.status(400).json({ message: "Champs invalides" });
+
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase(); // 🔑 LA clé du fix
+
+    if (cleanUsername.length < 3 || cleanUsername.length > 30)
+      return res.status(400).json({ message: "Pseudo : 3 à 30 caractères" });
+
+    if (!EMAIL_REGEX.test(cleanEmail))
+      return res.status(400).json({ message: "Format d'email invalide" });
+
+    if (!ALLOWED_EMAIL.test(cleanEmail))
+      return res.status(400).json({ message: "Utilise Gmail, Hotmail ou Outlook" });
+
+    if (password.length < 6)
+      return res.status(400).json({ message: "Mot de passe : 6 caractères min" });
 
     const ip = getIp(req);
 
-    // 🚫 Vérifie ban par email OU IP
+    // ─── 2. Ban par email OU IP ───
     const banHit = await BanList.findOne({
-      where: { [Op.or]: [{ email }, { ip }] },
+      where: { [Op.or]: [{ email: cleanEmail }, { ip }] },
     });
-    if (banHit) {
-      return res.status(403).json({
-        message: "🚫 Tu es banni de cette plateforme. Contacte un admin.",
-      });
-    }
+    if (banHit)
+      return res.status(403).json({ message: "🚫 Tu es banni de cette plateforme." });
 
-    const exists = await User.findOne({
-      where: { [Op.or]: [{ email }, { username }] },
-    });
-    if (exists)
-      return res.status(400).json({ message: "Utilisateur déjà existant" });
+    // ─── 3. Vérif existence (email normalisé) ───
+    const existsEmail = await User.findOne({ where: { email: cleanEmail } });
+    if (existsEmail)
+      return res.status(400).json({ message: "Cet email est déjà utilisé" });
 
+    const existsUser = await User.findOne({ where: { username: cleanUsername } });
+    if (existsUser)
+      return res.status(400).json({ message: "Ce pseudo est déjà pris" });
+
+    // ─── 4. Création ───
     const hash = await bcrypt.hash(password, 10);
     const count = await User.count();
     const role = count === 0 ? "admin" : "membre";
 
-    const user = await User.create({
-      username,
-      email,
-      password: hash,
-      role,
-      registrationIp: ip,
-    });
+    let user;
+    try {
+      user = await User.create({
+        username: cleanUsername,
+        email: cleanEmail,
+        password: hash,
+        role,
+        registrationIp: ip,
+      });
+    } catch (err) {
+      // Filet de sécurité : race condition ou contrainte UNIQUE
+      if (err.name === "SequelizeUniqueConstraintError") {
+        const field = err.errors?.[0]?.path;
+        return res.status(400).json({
+          message:
+            field === "email"
+              ? "Cet email est déjà utilisé"
+              : "Ce pseudo est déjà pris",
+        });
+      }
+      throw err;
+    }
 
     res.json({
       token: sign(user.id),
-      user: { id: user.id, username, email, role: user.role },
+      user: { id: user.id, username: user.username, email: user.email, role: user.role },
     });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    console.error("[register]", e);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+//  LOGIN
+// ═══════════════════════════════════════════════════════════════
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ where: { email } });
-    if (!user)
-      return res.status(400).json({ message: "Identifiants invalides" });
+    if (typeof email !== "string" || typeof password !== "string")
+      return res.status(400).json({ message: "Champs invalides" });
 
-    // 🚫 Bloque si banni
-    if (user.banned) {
-      return res.status(403).json({
-        message: `🚫 Tu es banni : ${user.bannedReason}`,
-      });
-    }
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    if (!user) return res.status(400).json({ message: "Identifiants invalides" });
+
+    if (user.banned)
+      return res
+        .status(403)
+        .json({ message: `🚫 Tu es banni : ${user.bannedReason || ""}` });
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ message: "Identifiants invalides" });
@@ -87,7 +130,8 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    console.error("[login]", e);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
