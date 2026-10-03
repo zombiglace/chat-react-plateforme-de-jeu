@@ -15,12 +15,30 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Validation côté client
+    if (!cleanEmail) {
+      setError("Rentre ton email");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("Format d'email invalide");
+      return;
+    }
+    if (!password) {
+      setError("Rentre ton mot de passe");
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
+      await login(cleanEmail, password);
       nav("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Impossible de se connecter");
+      const data = err.response?.data;
+      setError(data?.message || "Impossible de se connecter");
     } finally {
       setLoading(false);
     }
@@ -28,7 +46,6 @@ export default function Login() {
 
   return (
     <div className="auth-scene">
-      {/* Colonne gauche : présentation */}
       <div className="auth-brand">
         <div className="auth-brand-inner">
           <div className="auth-logo">💬</div>
@@ -63,7 +80,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Colonne droite : formulaire */}
       <div className="auth-form-side">
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-form-head">
@@ -121,13 +137,14 @@ export default function Login() {
           </p>
         </form>
       </div>
-            <div className="auth-legal-links">
-  <Link to="/mentions-legales">Mentions légales</Link>
-  <span>·</span>
-  <Link to="/confidentialite">Confidentialité</Link>
-  <span>·</span>
-  <Link to="/accessibilite">Accessibilité</Link>
-</div>
+
+      <div className="auth-legal-links">
+        <Link to="/mentions-legales">Mentions légales</Link>
+        <span>·</span>
+        <Link to="/confidentialite">Confidentialité</Link>
+        <span>·</span>
+        <Link to="/accessibilite">Accessibilité</Link>
+      </div>
     </div>
   );
 }
