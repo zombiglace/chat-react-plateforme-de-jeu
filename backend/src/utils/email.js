@@ -74,14 +74,30 @@ function buildVerificationEmail({ username, verifyUrl }) {
 //  ENVOI VIA API RESEND
 // ═══════════════════════════════════════════════════════════════
 async function sendVerificationEmail({ to, username, token }) {
+  // ─── Vérifs de config AVANT l'appel réseau ───
   if (!RESEND_API_KEY) {
-    throw new Error(
-      "RESEND_API_KEY manquante — configure-la dans les variables d'environnement"
-    );
+    console.error("═══════════════════════════════════════════");
+    console.error("❌ CONFIG EMAIL MANQUANTE");
+    console.error("RESEND_API_KEY n'est pas définie dans les variables d'environnement");
+    console.error("═══════════════════════════════════════════");
+    throw new Error("RESEND_API_KEY manquante");
   }
 
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
+
+  const payload = {
+    from: FROM,
+    to: [to],
+    subject: "Confirme ton inscription à Chat NSI TERM",
+    html: buildVerificationEmail({ username, verifyUrl }),
+    text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
+  };
+
+  // ─── Log de la tentative ───
+  console.log("📤 [email] Tentative d'envoi via Resend :");
+  console.log("   FROM :", FROM);
+  console.log("   TO   :", to);
 
   let res;
   try {
@@ -91,27 +107,38 @@ async function sendVerificationEmail({ to, username, token }) {
         Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from: FROM,
-        to: [to],
-        subject: "Confirme ton inscription à Chat NSI TERM",
-        html: buildVerificationEmail({ username, verifyUrl }),
-        text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (networkErr) {
-    console.error("[email] Erreur réseau vers Resend :", networkErr.message);
+    console.error("═══════════════════════════════════════════");
+    console.error("❌ ERREUR RÉSEAU vers api.resend.com");
+    console.error("Message :", networkErr.message);
+    console.error("═══════════════════════════════════════════");
     throw new Error(`Impossible de contacter Resend : ${networkErr.message}`);
   }
 
+  // ─── Gestion des erreurs Resend ───
   if (!res.ok) {
     const errorBody = await res.text();
-    console.error(`[email] Resend HTTP ${res.status} :`, errorBody);
+    console.error("═══════════════════════════════════════════");
+    console.error("❌ RESEND A REFUSÉ L'ENVOI");
+    console.error("Status HTTP    :", res.status);
+    console.error("Réponse Resend :", errorBody);
+    console.error("FROM utilisé   :", FROM);
+    console.error("TO utilisé     :", to);
+    console.error("API Key (8prem):", RESEND_API_KEY?.slice(0, 8) + "...");
+    console.error("───────────────────────────────────────────");
+    console.error("💡 Pistes :");
+    console.error("  - 403 : tu essaies d'envoyer vers un email ≠ ton email Resend (mode gratuit)");
+    console.error("  - 422 : EMAIL_FROM invalide ou domaine non vérifié");
+    console.error("  - 401 : RESEND_API_KEY invalide ou expirée");
+    console.error("  - 429 : quota dépassé (100 emails/jour en gratuit)");
+    console.error("═══════════════════════════════════════════");
     throw new Error(`Resend API error (${res.status}): ${errorBody}`);
   }
 
   const data = await res.json();
-  console.log(`📧 Email envoyé à ${to} (id: ${data.id})`);
+  console.log(`✅ [email] Envoyé à ${to} (id: ${data.id})`);
   return data;
 }
 
