@@ -16,7 +16,7 @@ exports.protect = async (req, res, next) => {
     if (user.banned)
       return res
         .status(403)
-        .json({ message: `🚫 Banni : ${user.bannedReason}` });
+        .json({ message: `🚫 Banni : ${user.bannedReason || ""}` });
 
     req.user = user;
     next();
