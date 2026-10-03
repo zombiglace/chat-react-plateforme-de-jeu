@@ -33,6 +33,7 @@ const User = sequelize.define(
     chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
     registrationIp: { type: DataTypes.STRING, allowNull: true },
 
+    // ✅ Vérification email
     emailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     emailVerificationToken: { type: DataTypes.STRING, allowNull: true },
     emailVerificationExpires: { type: DataTypes.DATE, allowNull: true },
@@ -125,9 +126,6 @@ async function connectDB() {
   try {
     await sequelize.authenticate();
     console.log("✅ PostgreSQL connecté");
-
-    // sync() simple : ne touche pas aux tables existantes.
-    // Les colonnes/contraintes doivent déjà exister (voir migration SQL).
     await sequelize.sync();
     console.log("✅ Tables synchronisées");
 
