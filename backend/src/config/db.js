@@ -12,6 +12,9 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   },
 });
 
+// ═══════════════════════════════════════════════════════════════
+//  MODELS
+// ═══════════════════════════════════════════════════════════════
 const User = sequelize.define("User", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   username: { type: DataTypes.STRING, unique: true, allowNull: false },
@@ -26,6 +29,7 @@ const User = sequelize.define("User", {
   bannedReason: { type: DataTypes.STRING, defaultValue: "" },
   unoWins: { type: DataTypes.INTEGER, defaultValue: 0 },
   chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
+  registrationIp: { type: DataTypes.STRING, allowNull: true },
 });
 
 const Room = sequelize.define("Room", {
@@ -40,9 +44,19 @@ const Message = sequelize.define("Message", {
   type: { type: DataTypes.ENUM("text", "emoji", "system"), defaultValue: "text" },
 });
 
+const Document = sequelize.define("Document", {
+  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  url: { type: DataTypes.STRING, allowNull: false },
+  size: { type: DataTypes.INTEGER, defaultValue: 0 },
+  mimetype: { type: DataTypes.STRING, defaultValue: "" },
+  pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+});
+
 const BanList = sequelize.define("BanList", {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   email: { type: DataTypes.STRING, allowNull: true },
+  ip: { type: DataTypes.STRING, allowNull: true },
   reason: { type: DataTypes.STRING, defaultValue: "" },
 });
 
@@ -52,6 +66,9 @@ const PinnedDoc = sequelize.define("PinnedDoc", {
   filename: { type: DataTypes.STRING, allowNull: false, unique: true },
 });
 
+// ═══════════════════════════════════════════════════════════════
+//  ASSOCIATIONS
+// ═══════════════════════════════════════════════════════════════
 User.hasMany(Room, { foreignKey: "createdById", as: "createdRooms" });
 Room.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
@@ -64,12 +81,20 @@ Message.belongsTo(User, { foreignKey: "receiverId", as: "receiver" });
 Room.hasMany(Message, { foreignKey: "roomId", as: "messages", onDelete: "CASCADE" });
 Message.belongsTo(Room, { foreignKey: "roomId", as: "room" });
 
+User.hasMany(Document, { foreignKey: "uploadedById", as: "documents" });
+Document.belongsTo(User, { foreignKey: "uploadedById", as: "uploadedBy" });
+
+// ═══════════════════════════════════════════════════════════════
+//  CONNEXION
+// ═══════════════════════════════════════════════════════════════
 async function connectDB() {
   try {
     await sequelize.authenticate();
     console.log("✅ PostgreSQL connecté");
-    await sequelize.sync({ alter: true });
+
+    await sequelize.sync();
     console.log("✅ Tables synchronisées");
+
     if ((await Room.count()) === 0) {
       await Room.create({ name: "general", description: "Salon principal" });
       console.log("➕ Salon #general créé");
@@ -80,4 +105,13 @@ async function connectDB() {
   }
 }
 
-module.exports = { sequelize, connectDB, User, Room, Message, BanList, PinnedDoc };
+module.exports = {
+  sequelize,
+  connectDB,
+  User,
+  Room,
+  Message,
+  Document,
+  BanList,
+  PinnedDoc,
+};
