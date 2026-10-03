@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 import Register from "./components/Register";
+import VerifyEmail from "./components/VerifyEmail";
 import Sidebar from "./components/Sidebar";
 import Chat from "./components/Chat";
 import Documents from "./components/Documents";
@@ -17,6 +18,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
       {/* Pages légales accessibles sans connexion */}
 
