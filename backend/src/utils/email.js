@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
-//  RESEND — Envoi d'emails via API HTTP (pas de SMTP bloqué par Render)
-//  Doc : https://resend.com/docs/api-reference/emails/send-email
+//  BREVO — Envoi d'emails via API HTTP
+//  Doc : https://developers.brevo.com/reference/sendtransacemail
+//  ✅ Fonctionne sans domaine personnalisé
+//  ✅ Envoie à n'importe qui après avoir vérifié 1 adresse expéditrice
 // ═══════════════════════════════════════════════════════════════
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM =
-  process.env.EMAIL_FROM || "Chat NSI <onboarding@resend.dev>";
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const FROM_EMAIL =
+  process.env.EMAIL_FROM || "Chat NSI <julientraineau17@gmail.com>";
 
 // ═══════════════════════════════════════════════════════════════
 //  TEMPLATE HTML
@@ -71,74 +73,74 @@ function buildVerificationEmail({ username, verifyUrl }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ENVOI VIA API RESEND
+//  ENVOI VIA API BREVO
 // ═══════════════════════════════════════════════════════════════
 async function sendVerificationEmail({ to, username, token }) {
-  // ─── Vérifs de config AVANT l'appel réseau ───
-  if (!RESEND_API_KEY) {
+  if (!BREVO_API_KEY) {
     console.error("═══════════════════════════════════════════");
-    console.error("❌ CONFIG EMAIL MANQUANTE");
-    console.error("RESEND_API_KEY n'est pas définie dans les variables d'environnement");
+    console.error("❌ BREVO_API_KEY manquante");
     console.error("═══════════════════════════════════════════");
-    throw new Error("RESEND_API_KEY manquante");
+    throw new Error("BREVO_API_KEY manquante");
   }
 
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
 
+  // Parsing du format "Nom <email@domain.com>"
+  const senderMatch = FROM_EMAIL.match(/^(.*?)\s*<(.+)>$/);
+  const senderName = senderMatch ? senderMatch[1].trim() : "Chat NSI";
+  const senderEmail = senderMatch ? senderMatch[2].trim() : FROM_EMAIL;
+
   const payload = {
-    from: FROM,
-    to: [to],
+    sender: { name: senderName, email: senderEmail },
+    to: [{ email: to }],
     subject: "Confirme ton inscription à Chat NSI TERM",
-    html: buildVerificationEmail({ username, verifyUrl }),
-    text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
+    htmlContent: buildVerificationEmail({ username, verifyUrl }),
+    textContent: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
   };
 
-  // ─── Log de la tentative ───
-  console.log("📤 [email] Tentative d'envoi via Resend :");
-  console.log("   FROM :", FROM);
+  console.log("📤 [email] Tentative d'envoi via Brevo :");
+  console.log("   FROM :", senderEmail);
   console.log("   TO   :", to);
 
   let res;
   try {
-    res = await fetch("https://api.resend.com/emails", {
+    res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "api-key": BREVO_API_KEY,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(payload),
     });
   } catch (networkErr) {
     console.error("═══════════════════════════════════════════");
-    console.error("❌ ERREUR RÉSEAU vers api.resend.com");
+    console.error("❌ ERREUR RÉSEAU vers api.brevo.com");
     console.error("Message :", networkErr.message);
     console.error("═══════════════════════════════════════════");
-    throw new Error(`Impossible de contacter Resend : ${networkErr.message}`);
+    throw new Error(`Impossible de contacter Brevo : ${networkErr.message}`);
   }
 
-  // ─── Gestion des erreurs Resend ───
   if (!res.ok) {
     const errorBody = await res.text();
     console.error("═══════════════════════════════════════════");
-    console.error("❌ RESEND A REFUSÉ L'ENVOI");
+    console.error("❌ BREVO A REFUSÉ L'ENVOI");
     console.error("Status HTTP    :", res.status);
-    console.error("Réponse Resend :", errorBody);
-    console.error("FROM utilisé   :", FROM);
+    console.error("Réponse Brevo  :", errorBody);
+    console.error("FROM utilisé   :", senderEmail);
     console.error("TO utilisé     :", to);
-    console.error("API Key (8prem):", RESEND_API_KEY?.slice(0, 8) + "...");
     console.error("───────────────────────────────────────────");
     console.error("💡 Pistes :");
-    console.error("  - 403 : tu essaies d'envoyer vers un email ≠ ton email Resend (mode gratuit)");
-    console.error("  - 422 : EMAIL_FROM invalide ou domaine non vérifié");
-    console.error("  - 401 : RESEND_API_KEY invalide ou expirée");
-    console.error("  - 429 : quota dépassé (100 emails/jour en gratuit)");
+    console.error("  - 401 : BREVO_API_KEY invalide ou expirée");
+    console.error("  - 400 : sender email pas vérifié chez Brevo");
+    console.error("  - 429 : quota dépassé (300 emails/jour en gratuit)");
     console.error("═══════════════════════════════════════════");
-    throw new Error(`Resend API error (${res.status}): ${errorBody}`);
+    throw new Error(`Brevo API error (${res.status}): ${errorBody}`);
   }
 
   const data = await res.json();
-  console.log(`✅ [email] Envoyé à ${to} (id: ${data.id})`);
+  console.log(`✅ [email] Envoyé à ${to} (messageId: ${data.messageId})`);
   return data;
 }
 
