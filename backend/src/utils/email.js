@@ -1,8 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 //  BREVO — Envoi d'emails via API HTTP
 //  Doc : https://developers.brevo.com/reference/sendtransacemail
-//  ✅ Fonctionne sans domaine personnalisé
-//  ✅ Envoie à n'importe qui après avoir vérifié 1 adresse expéditrice
 // ═══════════════════════════════════════════════════════════════
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
@@ -130,11 +128,6 @@ async function sendVerificationEmail({ to, username, token }) {
     console.error("Réponse Brevo  :", errorBody);
     console.error("FROM utilisé   :", senderEmail);
     console.error("TO utilisé     :", to);
-    console.error("───────────────────────────────────────────");
-    console.error("💡 Pistes :");
-    console.error("  - 401 : BREVO_API_KEY invalide ou expirée");
-    console.error("  - 400 : sender email pas vérifié chez Brevo");
-    console.error("  - 429 : quota dépassé (300 emails/jour en gratuit)");
     console.error("═══════════════════════════════════════════");
     throw new Error(`Brevo API error (${res.status}): ${errorBody}`);
   }
