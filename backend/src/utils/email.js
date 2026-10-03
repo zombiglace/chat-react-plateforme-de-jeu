@@ -1,5 +1,8 @@
 const nodemailer = require("nodemailer");
 
+// ═══════════════════════════════════════════════════════════════
+//  TRANSPORTER SMTP
+// ═══════════════════════════════════════════════════════════════
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 587,
@@ -13,6 +16,9 @@ const transporter = nodemailer.createTransport({
 const FROM =
   process.env.SMTP_FROM || `"Chat NSI" <${process.env.SMTP_USER}>`;
 
+// ═══════════════════════════════════════════════════════════════
+//  TEMPLATE HTML
+// ═══════════════════════════════════════════════════════════════
 function buildVerificationEmail({ username, verifyUrl }) {
   return `
 <!DOCTYPE html>
@@ -73,6 +79,9 @@ function buildVerificationEmail({ username, verifyUrl }) {
   `.trim();
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  ENVOI
+// ═══════════════════════════════════════════════════════════════
 async function sendVerificationEmail({ to, username, token }) {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
