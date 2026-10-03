@@ -17,6 +17,7 @@ export default function Register() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false); // ⚠️ nouvel état
 
   const checks = useMemo(
     () => ({
@@ -50,7 +51,7 @@ export default function Register() {
         form.email.trim().toLowerCase(),
         form.password
       );
-      nav("/");
+      setSuccess(true);
     } catch (err) {
       const data = err.response?.data;
       setError(data?.message || "Impossible de créer le compte");
@@ -63,6 +64,54 @@ export default function Register() {
     <span className={`auth-check ${ok ? "on" : ""}`}>{ok ? "✓" : "•"}</span>
   );
 
+  // ═══════════════════════════════════════════════════════════
+  //  ÉCRAN DE SUCCÈS — vérifie tes emails
+  // ═══════════════════════════════════════════════════════════
+  if (success) {
+    return (
+      <div className="auth-scene">
+        <div className="auth-form-side" style={{ maxWidth: 520, margin: "0 auto" }}>
+          <div className="auth-form" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>📧</div>
+            <h2 style={{ marginBottom: 12 }}>Vérifie ta boîte mail</h2>
+            <p style={{ color: "#4b5563", marginBottom: 20, lineHeight: 1.6 }}>
+              Un email de confirmation vient d'être envoyé à <br />
+              <strong>{form.email.trim().toLowerCase()}</strong>
+            </p>
+            <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+              Clique sur le lien dans l'email pour activer ton compte.
+              <br />
+              ⏱️ Le lien expire dans 24 heures.
+              <br />
+              💡 Pense à vérifier tes spams !
+            </p>
+
+            <Link
+              to="/login"
+              className="auth-submit"
+              style={{
+                display: "inline-block",
+                textAlign: "center",
+                textDecoration: "none",
+                marginBottom: 12,
+              }}
+            >
+              Aller à la connexion
+            </Link>
+
+            <p className="auth-switch" style={{ marginTop: 20 }}>
+              Pas reçu ? Vérifie tes spams ou{" "}
+              <Link to="/login">demande un nouveau lien</Link>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  FORMULAIRE NORMAL
+  // ═══════════════════════════════════════════════════════════
   return (
     <div className="auth-scene">
       <div className="auth-brand">
