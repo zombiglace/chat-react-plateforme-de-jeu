@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../api/axios";
 
 export default function Login() {
   const { login } = useAuth();
@@ -12,25 +13,23 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ⚠️ État spécial : email non vérifié
+  const [notVerified, setNotVerified] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setNotVerified(false);
+    setResendMessage("");
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Validation côté client
-    if (!cleanEmail) {
-      setError("Rentre ton email");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setError("Format d'email invalide");
-      return;
-    }
-    if (!password) {
-      setError("Rentre ton mot de passe");
-      return;
-    }
+    if (!cleanEmail) return setError("Rentre ton email");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
+      return setError("Format d'email invalide");
+    if (!password) return setError("Rentre ton mot de passe");
 
     setLoading(true);
     try {
@@ -38,9 +37,34 @@ export default function Login() {
       nav("/");
     } catch (err) {
       const data = err.response?.data;
-      setError(data?.message || "Impossible de se connecter");
+
+      // ⚠️ Cas spécial : email non vérifié
+      if (data?.code === "EMAIL_NOT_VERIFIED") {
+        setNotVerified(true);
+        setError(data.message);
+      } else {
+        setError(data?.message || "Impossible de se connecter");
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    setResendMessage("");
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data } = await api.post("/auth/resend-verification", {
+        email: cleanEmail,
+      });
+      setResendMessage(data.message || "Email renvoyé !");
+    } catch (err) {
+      setResendMessage(
+        err.response?.data?.message || "Impossible d'envoyer l'email"
+      );
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -88,6 +112,51 @@ export default function Login() {
           </div>
 
           {error && <div className="auth-error">{error}</div>}
+
+          {/* ⚠️ Bandeau renvoi d'email si non vérifié */}
+          {notVerified && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #fcd34d",
+                borderRadius: 8,
+                padding: 16,
+                marginBottom: 16,
+              }}
+            >
+              <p style={{ margin: "0 0 12px", fontSize: 14, color: "#92400e" }}>
+                📧 Tu n'as pas encore confirmé ton email.
+              </p>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+                style={{
+                  background: "#f59e0b",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "8px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: resendLoading ? "wait" : "pointer",
+                }}
+              >
+                {resendLoading ? "Envoi…" : "Renvoyer l'email de confirmation"}
+              </button>
+              {resendMessage && (
+                <p
+                  style={{
+                    margin: "12px 0 0",
+                    fontSize: 13,
+                    color: "#92400e",
+                  }}
+                >
+                  {resendMessage}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="auth-field">
             <label className="auth-label">Adresse email</label>
