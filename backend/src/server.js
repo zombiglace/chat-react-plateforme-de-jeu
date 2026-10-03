@@ -33,13 +33,9 @@ if (!process.env.DATABASE_URL) {
   console.error("❌ FATAL: DATABASE_URL manquant");
   process.exit(1);
 }
-if (
-  !process.env.SMTP_HOST ||
-  !process.env.SMTP_USER ||
-  !process.env.SMTP_PASS
-) {
+if (!process.env.RESEND_API_KEY) {
   console.error(
-    "❌ FATAL: Config SMTP incomplète (SMTP_HOST/SMTP_USER/SMTP_PASS)"
+    "❌ FATAL: RESEND_API_KEY manquante (nécessaire pour envoyer les emails)"
   );
   process.exit(1);
 }
