@@ -98,7 +98,7 @@ router.post("/register", async (req, res) => {
         password: hash,
         role,
         registrationIp: ip,
-        emailVerified: false, // ⚠️ bloqué tant que pas confirmé
+        emailVerified: false,
         emailVerificationToken: token,
         emailVerificationExpires: expires,
       });
@@ -115,7 +115,7 @@ router.post("/register", async (req, res) => {
       throw err;
     }
 
-    // ⚠️ Le tout premier user (admin) est auto-vérifié
+    // Le tout premier user (admin) est auto-vérifié
     if (role === "admin") {
       user.emailVerified = true;
       user.emailVerificationToken = null;
@@ -125,6 +125,13 @@ router.post("/register", async (req, res) => {
       return res.json({
         message: "Compte admin créé, tu peux te connecter.",
         needsVerification: false,
+        token: sign(user.id),
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        },
       });
     }
 
@@ -137,8 +144,6 @@ router.post("/register", async (req, res) => {
       });
     } catch (mailErr) {
       console.error("[register] Erreur envoi email :", mailErr.message);
-      // On ne bloque pas l'inscription si l'email échoue,
-      // mais on prévient le user qu'il peut renvoyer.
     }
 
     console.log(`✅ [register] Nouveau compte (non vérifié) : ${cleanEmail}`);
@@ -192,7 +197,6 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // 🔒 VÉRIFICATION EMAIL
     if (!user.emailVerified) {
       console.log(`⏳ [login] Email non vérifié : ${cleanEmail}`);
       return res.status(403).json({
@@ -302,7 +306,6 @@ router.post("/resend-verification", async (req, res) => {
 
     const user = await User.findOne({ where: { email: cleanEmail } });
 
-    // On répond TOUJOURS OK (anti-énumération)
     if (!user || user.emailVerified) {
       return res.json({
         ok: true,
@@ -311,7 +314,6 @@ router.post("/resend-verification", async (req, res) => {
       });
     }
 
-    // Nouveau token
     const token = generateToken();
     const expires = new Date(Date.now() + TOKEN_TTL_MS);
 
@@ -328,7 +330,8 @@ router.post("/resend-verification", async (req, res) => {
     } catch (mailErr) {
       console.error("[resend-verification] Erreur email :", mailErr.message);
       return res.status(500).json({
-        message: "Impossible d'envoyer l'email pour le moment. Réessaie plus tard.",
+        message:
+          "Impossible d'envoyer l'email pour le moment. Réessaie plus tard.",
       });
     }
 
