@@ -181,7 +181,7 @@ app.get("/api/health", (_, res) => res.json({ ok: true, ts: Date.now() }));
 // ═══════════════════════════════════════════════════════════════
 //  AUTH — UNIQUEMENT via routes/auth.js
 // ═══════════════════════════════════════════════════════════════
-app.use("/api/auth", require("./routes/auth"));
+app.use("/api/auth", require("./routes/auth.routes"));
 
 // ═══════════════════════════════════════════════════════════════
 //  USERS
