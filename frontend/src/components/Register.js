@@ -20,9 +20,11 @@ export default function Register() {
 
   const checks = useMemo(
     () => ({
-      username: form.username.length >= 3 && form.username.length <= 30,
-      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email),
-      domain: ALLOWED_EMAIL.test(form.email),
+      username:
+        form.username.trim().length >= 3 &&
+        form.username.trim().length <= 30,
+      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()),
+      domain: ALLOWED_EMAIL.test(form.email.trim()),
       password: form.password.length >= 6,
       confirm: form.password.length > 0 && form.password === form.confirm,
     }),
@@ -50,7 +52,8 @@ export default function Register() {
       );
       nav("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Impossible de créer le compte");
+      const data = err.response?.data;
+      setError(data?.message || "Impossible de créer le compte");
     } finally {
       setLoading(false);
     }
