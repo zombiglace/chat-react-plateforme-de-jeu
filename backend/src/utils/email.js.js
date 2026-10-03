@@ -1,30 +1,23 @@
 const nodemailer = require("nodemailer");
 
-// ═══════════════════════════════════════════════════════════════
-//  TRANSPORTER SMTP
-// ═══════════════════════════════════════════════════════════════
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 587,
-  secure: Number(process.env.SMTP_PORT) === 465, // true pour 465, false sinon
+  secure: Number(process.env.SMTP_PORT) === 465,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-const FROM = process.env.SMTP_FROM || `"Chat NSI" <${process.env.SMTP_USER}>`;
+const FROM =
+  process.env.SMTP_FROM || `"Chat NSI" <${process.env.SMTP_USER}>`;
 
-// ═══════════════════════════════════════════════════════════════
-//  TEMPLATE HTML
-// ═══════════════════════════════════════════════════════════════
 function buildVerificationEmail({ username, verifyUrl }) {
   return `
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-</head>
+<head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f4f7;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px;">
     <tr>
@@ -46,8 +39,7 @@ function buildVerificationEmail({ username, verifyUrl }) {
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
                 <tr>
                   <td style="border-radius:8px;background:#6366f1;">
-                    <a href="${verifyUrl}"
-                       style="display:inline-block;padding:14px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;border-radius:8px;">
+                    <a href="${verifyUrl}" style="display:inline-block;padding:14px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;border-radius:8px;">
                       ✅ Confirmer mon email
                     </a>
                   </td>
@@ -81,12 +73,8 @@ function buildVerificationEmail({ username, verifyUrl }) {
   `.trim();
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ENVOI
-// ═══════════════════════════════════════════════════════════════
 async function sendVerificationEmail({ to, username, token }) {
-  const frontendUrl =
-    process.env.FRONTEND_URL || "http://localhost:5173";
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
 
   const info = await transporter.sendMail({
