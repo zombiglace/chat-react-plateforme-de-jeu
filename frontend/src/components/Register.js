@@ -17,7 +17,7 @@ export default function Register() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false); // ⚠️ nouvel état
+  const [success, setSuccess] = useState(false);
 
   const checks = useMemo(
     () => ({
@@ -65,20 +65,36 @@ export default function Register() {
   );
 
   // ═══════════════════════════════════════════════════════════
-  //  ÉCRAN DE SUCCÈS — vérifie tes emails
+  //  ÉCRAN DE SUCCÈS
   // ═══════════════════════════════════════════════════════════
   if (success) {
     return (
       <div className="auth-scene">
-        <div className="auth-form-side" style={{ maxWidth: 520, margin: "0 auto" }}>
+        <div
+          className="auth-form-side"
+          style={{ maxWidth: 520, margin: "0 auto" }}
+        >
           <div className="auth-form" style={{ textAlign: "center" }}>
             <div style={{ fontSize: 64, marginBottom: 16 }}>📧</div>
             <h2 style={{ marginBottom: 12 }}>Vérifie ta boîte mail</h2>
-            <p style={{ color: "#4b5563", marginBottom: 20, lineHeight: 1.6 }}>
+            <p
+              style={{
+                color: "#4b5563",
+                marginBottom: 20,
+                lineHeight: 1.6,
+              }}
+            >
               Un email de confirmation vient d'être envoyé à <br />
               <strong>{form.email.trim().toLowerCase()}</strong>
             </p>
-            <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+            <p
+              style={{
+                color: "#6b7280",
+                fontSize: 14,
+                marginBottom: 24,
+                lineHeight: 1.6,
+              }}
+            >
               Clique sur le lien dans l'email pour activer ton compte.
               <br />
               ⏱️ Le lien expire dans 24 heures.
@@ -110,7 +126,7 @@ export default function Register() {
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  FORMULAIRE NORMAL
+  //  FORMULAIRE
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="auth-scene">
