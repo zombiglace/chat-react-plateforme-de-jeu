@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  RESEND — Envoi d'emails via HTTP (pas de SMTP bloqué)
+//  RESEND — Envoi d'emails via API HTTP (pas de SMTP bloqué par Render)
 //  Doc : https://resend.com/docs/api-reference/emails/send-email
 // ═══════════════════════════════════════════════════════════════
 
@@ -83,23 +83,30 @@ async function sendVerificationEmail({ to, username, token }) {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const verifyUrl = `${frontendUrl}/verify-email/${token}`;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: FROM,
-      to: [to],
-      subject: "Confirme ton inscription à Chat NSI TERM",
-      html: buildVerificationEmail({ username, verifyUrl }),
-      text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
-    }),
-  });
+  let res;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: FROM,
+        to: [to],
+        subject: "Confirme ton inscription à Chat NSI TERM",
+        html: buildVerificationEmail({ username, verifyUrl }),
+        text: `Salut ${username},\n\nConfirme ton email en cliquant ici : ${verifyUrl}\n\nCe lien expire dans 24h.`,
+      }),
+    });
+  } catch (networkErr) {
+    console.error("[email] Erreur réseau vers Resend :", networkErr.message);
+    throw new Error(`Impossible de contacter Resend : ${networkErr.message}`);
+  }
 
   if (!res.ok) {
     const errorBody = await res.text();
+    console.error(`[email] Resend HTTP ${res.status} :`, errorBody);
     throw new Error(`Resend API error (${res.status}): ${errorBody}`);
   }
 
