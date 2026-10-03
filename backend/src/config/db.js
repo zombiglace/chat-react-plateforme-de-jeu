@@ -15,56 +15,82 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
 // ═══════════════════════════════════════════════════════════════
 //  MODELS
 // ═══════════════════════════════════════════════════════════════
-const User = sequelize.define("User", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  username: { type: DataTypes.STRING, unique: true, allowNull: false },
-  email: { type: DataTypes.STRING, unique: true, allowNull: false },
-  password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.ENUM("membre", "admin"), defaultValue: "membre" },
-  online: { type: DataTypes.BOOLEAN, defaultValue: false },
-  muted: { type: DataTypes.BOOLEAN, defaultValue: false },
-  mutedUntil: { type: DataTypes.DATE, allowNull: true },
-  mutedReason: { type: DataTypes.STRING, defaultValue: "" },
-  banned: { type: DataTypes.BOOLEAN, defaultValue: false },
-  bannedReason: { type: DataTypes.STRING, defaultValue: "" },
-  unoWins: { type: DataTypes.INTEGER, defaultValue: 0 },
-  chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
-  registrationIp: { type: DataTypes.STRING, allowNull: true },
-});
+const User = sequelize.define(
+  "User",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    username: { type: DataTypes.STRING, unique: true, allowNull: false },
+    email: { type: DataTypes.STRING, unique: true, allowNull: false },
+    password: { type: DataTypes.STRING, allowNull: false },
+    role: { type: DataTypes.ENUM("membre", "admin"), defaultValue: "membre" },
+    online: { type: DataTypes.BOOLEAN, defaultValue: false },
+    muted: { type: DataTypes.BOOLEAN, defaultValue: false },
+    mutedUntil: { type: DataTypes.DATE, allowNull: true },
+    mutedReason: { type: DataTypes.STRING, defaultValue: "" },
+    banned: { type: DataTypes.BOOLEAN, defaultValue: false },
+    bannedReason: { type: DataTypes.STRING, defaultValue: "" },
+    unoWins: { type: DataTypes.INTEGER, defaultValue: 0 },
+    chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
+    registrationIp: { type: DataTypes.STRING, allowNull: true },
+  },
+  { tableName: "Users" }
+);
 
-const Room = sequelize.define("Room", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  name: { type: DataTypes.STRING, unique: true, allowNull: false },
-  description: { type: DataTypes.STRING, defaultValue: "" },
-});
+const Room = sequelize.define(
+  "Room",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    name: { type: DataTypes.STRING, unique: true, allowNull: false },
+    description: { type: DataTypes.STRING, defaultValue: "" },
+  },
+  { tableName: "Rooms" }
+);
 
-const Message = sequelize.define("Message", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  content: { type: DataTypes.TEXT, allowNull: false },
-  type: { type: DataTypes.ENUM("text", "emoji", "system"), defaultValue: "text" },
-});
+const Message = sequelize.define(
+  "Message",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    content: { type: DataTypes.TEXT, allowNull: false },
+    type: {
+      type: DataTypes.ENUM("text", "emoji", "system"),
+      defaultValue: "text",
+    },
+  },
+  { tableName: "Messages" }
+);
 
-const Document = sequelize.define("Document", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  name: { type: DataTypes.STRING, allowNull: false },
-  url: { type: DataTypes.STRING, allowNull: false },
-  size: { type: DataTypes.INTEGER, defaultValue: 0 },
-  mimetype: { type: DataTypes.STRING, defaultValue: "" },
-  pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
-});
+const Document = sequelize.define(
+  "Document",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    url: { type: DataTypes.STRING, allowNull: false },
+    size: { type: DataTypes.INTEGER, defaultValue: 0 },
+    mimetype: { type: DataTypes.STRING, defaultValue: "" },
+    pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { tableName: "Documents" }
+);
 
-const BanList = sequelize.define("BanList", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  email: { type: DataTypes.STRING, allowNull: true },
-  ip: { type: DataTypes.STRING, allowNull: true },
-  reason: { type: DataTypes.STRING, defaultValue: "" },
-});
+const BanList = sequelize.define(
+  "BanList",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    email: { type: DataTypes.STRING, allowNull: true },
+    ip: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.STRING, defaultValue: "" },
+  },
+  { tableName: "BanLists" }
+);
 
-// 📌 Fichiers épinglés (identifiés par leur nom de fichier)
-const PinnedDoc = sequelize.define("PinnedDoc", {
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  filename: { type: DataTypes.STRING, allowNull: false, unique: true },
-});
+const PinnedDoc = sequelize.define(
+  "PinnedDoc",
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    filename: { type: DataTypes.STRING, allowNull: false, unique: true },
+  },
+  { tableName: "PinnedDocs" }
+);
 
 // ═══════════════════════════════════════════════════════════════
 //  ASSOCIATIONS
@@ -78,7 +104,11 @@ Message.belongsTo(User, { foreignKey: "senderId", as: "sender" });
 User.hasMany(Message, { foreignKey: "receiverId", as: "receivedMessages" });
 Message.belongsTo(User, { foreignKey: "receiverId", as: "receiver" });
 
-Room.hasMany(Message, { foreignKey: "roomId", as: "messages", onDelete: "CASCADE" });
+Room.hasMany(Message, {
+  foreignKey: "roomId",
+  as: "messages",
+  onDelete: "CASCADE",
+});
 Message.belongsTo(Room, { foreignKey: "roomId", as: "room" });
 
 User.hasMany(Document, { foreignKey: "uploadedById", as: "documents" });
@@ -92,6 +122,8 @@ async function connectDB() {
     await sequelize.authenticate();
     console.log("✅ PostgreSQL connecté");
 
+    // sync() simple : ne touche pas aux tables existantes.
+    // Les colonnes/contraintes doivent déjà exister (voir migration SQL).
     await sequelize.sync();
     console.log("✅ Tables synchronisées");
 
