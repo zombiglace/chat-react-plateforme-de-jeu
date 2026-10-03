@@ -32,6 +32,10 @@ const User = sequelize.define(
     unoWins: { type: DataTypes.INTEGER, defaultValue: 0 },
     chessWins: { type: DataTypes.INTEGER, defaultValue: 0 },
     registrationIp: { type: DataTypes.STRING, allowNull: true },
+
+    emailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
+    emailVerificationToken: { type: DataTypes.STRING, allowNull: true },
+    emailVerificationExpires: { type: DataTypes.DATE, allowNull: true },
   },
   { tableName: "Users" }
 );
