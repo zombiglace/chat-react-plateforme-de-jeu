@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import api from "../api/axios";
 
 export default function VerifyEmail() {
   const { token } = useParams();
-  const nav = useNavigate();
 
   const [status, setStatus] = useState("loading"); // loading | success | error
   const [message, setMessage] = useState("");
@@ -49,9 +48,7 @@ export default function VerifyEmail() {
             <>
               <div style={{ fontSize: 64, marginBottom: 16 }}>⏳</div>
               <h2>Vérification en cours…</h2>
-              <p style={{ color: "#6b7280" }}>
-                Patiente quelques secondes.
-              </p>
+              <p style={{ color: "#6b7280" }}>Patiente quelques secondes.</p>
             </>
           )}
 
